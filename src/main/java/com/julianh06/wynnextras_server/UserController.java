@@ -28,6 +28,12 @@ public class UserController {
         @RequestHeader("Wynncraft-Api-Key") String apiKey,
         @RequestHeader("RequestingUUID") String requestingUUID
     ) {
+        boolean requestingUserExists = repo.existsById(requestingUUID);
+        if (!requestingUserExists) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(null);
+        }
+
         List<String> actualUuids = wynncraftService.fetchUuid(apiKey);
 
         boolean isAuthorized = false;
@@ -38,7 +44,7 @@ public class UserController {
             }
         }
 
-        if (isAuthorized) {
+        if (!isAuthorized) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(null);
         }
