@@ -69,7 +69,7 @@ public class UserController {
                 break;
             }
         }
-        if (isAuthorized) {
+        if (!isAuthorized) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("UUID mismatch. You are not allowed to create this user.");
         }
