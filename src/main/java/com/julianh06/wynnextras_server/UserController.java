@@ -17,15 +17,32 @@ public class UserController {
         this.wynncraftService = wynncraftService;
     }
 
-    @GetMapping("/all")
-    public List<User> getUsers() {
-        return repo.findAll();
-    }
+//    @GetMapping("/all")
+//    public List<User> getUsers() {
+//        return repo.findAll();
+//    }
 
     @GetMapping
     public ResponseEntity<User> getUser(
-        @RequestHeader("playerUUID") String playerUUID
+        @RequestHeader("playerUUID") String playerUUID,
+        @RequestHeader("Wynncraft-Api-Key") String apiKey,
+        @RequestHeader("RequestingUUID") String requestingUUID
     ) {
+        List<String> actualUuids = wynncraftService.fetchUuid(apiKey);
+
+        boolean isAuthorized = false;
+        for(String actualUuid : actualUuids) {
+            if(requestingUUID.equalsIgnoreCase(actualUuid)) {
+                isAuthorized = true;
+                break;
+            }
+        }
+
+        if (isAuthorized) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(null);
+        }
+
         return repo.findById(playerUUID)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
@@ -36,10 +53,17 @@ public class UserController {
             @RequestHeader("Wynncraft-Api-Key") String apiKey,
             @RequestBody User user
     ) {
-        String expectedUuid = user.getUuid(); // UUID aus deinem User-Objekt
-        String actualUuid = wynncraftService.fetchUuid(apiKey); // UUID aus Wynncraft
+        String expectedUuid = user.getUuid();
+        List<String> actualUuids = wynncraftService.fetchUuid(apiKey);
 
-        if (!expectedUuid.equalsIgnoreCase(actualUuid)) {
+        boolean isAuthorized = false;
+        for(String actualUuid : actualUuids) {
+            if(expectedUuid.equalsIgnoreCase(actualUuid)) {
+                isAuthorized = true;
+                break;
+            }
+        }
+        if (isAuthorized) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("UUID mismatch. You are not allowed to create this user.");
         }

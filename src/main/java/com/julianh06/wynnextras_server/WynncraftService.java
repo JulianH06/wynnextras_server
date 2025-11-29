@@ -10,7 +10,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 @Service
 public class WynncraftService {
@@ -18,7 +20,7 @@ public class WynncraftService {
     private final HttpClient client = HttpClient.newHttpClient();
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public String fetchUuid(String apiKey) {
+    public List<String> fetchUuid(String apiKey) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("https://api.wynncraft.com/v3/player/whoami"))
@@ -35,14 +37,18 @@ public class WynncraftService {
 
             JsonNode root = mapper.readTree(response.body());
 
-            // Die UUID ist der Key des Objekts
+            List<String> uuids = new ArrayList<>();
             Iterator<String> fieldNames = root.fieldNames();
 
-            if (!fieldNames.hasNext()) {
-                throw new RuntimeException("Invalid JSON: no UUID key found");
+            while (fieldNames.hasNext()) {
+                uuids.add(fieldNames.next());
             }
 
-            return fieldNames.next(); // <-- DIE UUID
+            if (uuids.isEmpty()) {
+                throw new RuntimeException("Invalid JSON: no UUIDs found");
+            }
+
+            return uuids;
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to validate Wynncraft API key", e);
