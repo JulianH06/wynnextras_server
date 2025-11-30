@@ -17,7 +17,7 @@ public class User {
     private Long updatedAt;
     private String modVersion;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JsonManagedReference
     private List<Aspect> aspects = new ArrayList<>();
 
