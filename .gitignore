@@ -37,3 +37,6 @@ build/
 *.db*
 *.mv.db
 *.trace.db
+
+### Local config overrides ###
+application-local.properties
