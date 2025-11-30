@@ -4,8 +4,15 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 
 @Entity
+@Table(
+        name = "aspect",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"name", "user_uuid"})
+)
 public class Aspect {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
     private String name;
     private String rarity;
     private String requiredClass;
