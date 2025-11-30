@@ -4,7 +4,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("user")
@@ -57,26 +60,54 @@ public class UserController {
     @PostMapping
     public ResponseEntity<?> saveUser(
             @RequestHeader("Wynncraft-Api-Key") String apiKey,
-            @RequestBody User user
+            @RequestBody User incoming
     ) {
-        String expectedUuid = user.getUuid();
+        String expectedUuid = incoming.getUuid();
         List<String> actualUuids = wynncraftService.fetchUuid(apiKey);
 
-        boolean isAuthorized = false;
-        for(String actualUuid : actualUuids) {
-            if(expectedUuid.equalsIgnoreCase(actualUuid)) {
-                isAuthorized = true;
-                break;
-            }
-        }
+        boolean isAuthorized = actualUuids.stream()
+                .anyMatch(uuid -> uuid.equalsIgnoreCase(expectedUuid));
+
         if (!isAuthorized) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("UUID mismatch. You are not allowed to create this user.");
+                    .body("UUID mismatch. You are not allowed to create or update this user.");
         }
 
-        for (Aspect aspect : user.getAspects()) {
-            aspect.setUser(user);
+        User existing = repo.findById(incoming.getUuid()).orElse(null);
+
+        if (existing == null) {
+            for (Aspect a : incoming.getAspects()) {
+                a.setUser(incoming);
+            }
+            return ResponseEntity.ok(repo.save(incoming));
         }
-        return ResponseEntity.ok(repo.save(user));
+
+        Map<String, Aspect> existingMap = new HashMap<>();
+        for (Aspect a : existing.getAspects()) {
+            existingMap.put(a.getName(), a);
+        }
+
+        List<Aspect> mergedAspects = new ArrayList<>();
+
+        for (Aspect inc : incoming.getAspects()) {
+            inc.setUser(existing);
+
+            if (existingMap.containsKey(inc.getName())) {
+                Aspect db = existingMap.get(inc.getName());
+                db.setAmount(inc.getAmount());
+                db.setRarity(inc.getRarity());
+                db.setRequiredClass(inc.getRequiredClass());
+                mergedAspects.add(db);
+            } else {
+                mergedAspects.add(inc);
+            }
+        }
+
+        existing.setPlayerName(incoming.getPlayerName());
+        existing.setUpdatedAt(incoming.getUpdatedAt());
+        existing.setModVersion(incoming.getModVersion());
+        existing.setAspects(mergedAspects);
+
+        return ResponseEntity.ok(repo.save(existing));
     }
 }
