@@ -13,7 +13,7 @@ public class WynnextrasServerApplication {
 		SpringApplication.run(WynnextrasServerApplication.class, args);
 	}
 
-	@GetMapping
+	@GetMapping("/")
 	@ResponseBody
 	public String helloWorld() {
 		return "Fick dich Muecke!";
