@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <title>WynnExtras Database</title>
     <style>
         body { font-family: monospace; }
-        table { border-collapse: collapse; }
-        th, td { border: 1px solid #aaa; padding: 6px 10px; }
+        table { border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #aaa; padding: 6px 10px; text-align: left; }
         th { background: #eee; }
     </style>
 </head>
@@ -15,22 +15,22 @@
 <h2>WynnExtras Database</h2>
 
 <table>
+    <thead>
     <tr>
         <th>UUID</th>
         <th>Version</th>
         <th>Username</th>
         <th>Datum</th>
     </tr>
-
-    <tr> th:each="u : ${users}">
-        <td> th:text="${u.uuid}"></td>
-        <td> th:text="${u.modVersion}"></td>
-        <td> th:text="${u.playerName}"></td>
-        <td> th:text="${#dates.format(
-            new java.util.Date(u.updatedAt),
-            'dd.MM.yyyy HH:mm:ss'
-        )}"></td>
+    </thead>
+    <tbody>
+    <tr th:each="u : ${users}">
+        <td th:text="${u.uuid}">UUID</td>
+        <td th:text="${u.modVersion}">Version</td>
+        <td th:text="${u.playerName}">Username</td>
+        <td th:text="${#dates.format(new java.util.Date(u.updatedAt), 'dd.MM.yyyy HH:mm:ss')}">Datum</td>
     </tr>
+    </tbody>
 </table>
 
 </body>
