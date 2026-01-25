@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WynnExtras Database</title>
+    <style>
+        body { font-family: monospace; }
+        table { border-collapse: collapse; }
+        th, td { border: 1px solid #aaa; padding: 6px 10px; }
+        th { background: #eee; }
+    </style>
+</head>
+<body>
+
+<h2>WynnExtras Database</h2>
+
+<table>
+    <tr>
+        <th>UUID</th>
+        <th>Version</th>
+        <th>Username</th>
+        <th>Datum</th>
+    </tr>
+
+    <tr th:each="u : ${users}">
+        <td th:text="${u.uuid}"></td>
+        <td th:text="${u.modVersion}"></td>
+        <td th:text="${u.playerName}"></td>
+        <td th:text="${#dates.format(
+            new java.util.Date(u.updatedAt),
+            'dd.MM.yyyy HH:mm:ss'
+        )}"></td>
+    </tr>
+</table>
+
+</body>
+</html>
