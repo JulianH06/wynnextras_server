@@ -28,7 +28,7 @@
         <td th:text="${u.uuid}">UUID</td>
         <td th:text="${u.modVersion}">Version</td>
         <td th:text="${u.playerName}">Username</td>
-        <td th:text="${#dates.format(new java.util.Date(u.updatedAt), 'dd.MM.yyyy HH:mm:ss')}">Datum</td>
+        <td th:text="${#dates.format(u.updatedAtDate, 'dd.MM.yyyy HH:mm:ss')}"></td>
     </tr>
     </tbody>
 </table>

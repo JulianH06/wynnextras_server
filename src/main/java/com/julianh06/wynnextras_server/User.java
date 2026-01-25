@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
@@ -16,6 +17,13 @@ public class User {
     private String playerName;
     private Long updatedAt;
     private String modVersion;
+
+    @Transient
+    private Date updatedAtDate;
+
+    public Date getUpdatedAtDate() { return updatedAtDate; }
+    public void setUpdatedAtDate(Date updatedAtDate) { this.updatedAtDate = updatedAtDate; }
+
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JsonManagedReference

@@ -4,6 +4,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
+import java.util.Date;
+import java.util.List;
+
 @Controller
 public class DatabaseViewController {
 
@@ -15,7 +18,14 @@ public class DatabaseViewController {
 
     @GetMapping("/db")
     public String viewDatabase(Model model) {
-        model.addAttribute("users", userRepository.findAll());
+        List<User> users = userRepository.findAll();
+        for(User u : users) {
+            if(u.getUpdatedAt() != null) {
+                u.setUpdatedAtDate(new Date(u.getUpdatedAt()));
+            }
+        }
+
+        model.addAttribute("users", users);
         return "database";
     }
 }
