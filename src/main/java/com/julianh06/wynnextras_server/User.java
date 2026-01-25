@@ -18,13 +18,6 @@ public class User {
     private Long updatedAt;
     private String modVersion;
 
-    @Transient
-    private Date updatedAtDate;
-
-    public Date getUpdatedAtDate() { return updatedAtDate; }
-    public void setUpdatedAtDate(Date updatedAtDate) { this.updatedAtDate = updatedAtDate; }
-
-
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JsonManagedReference
     private List<Aspect> aspects = new ArrayList<>();

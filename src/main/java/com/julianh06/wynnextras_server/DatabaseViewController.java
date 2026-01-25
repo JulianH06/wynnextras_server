@@ -1,13 +1,9 @@
 package com.julianh06.wynnextras_server;
 
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Date;
-import java.util.List;
-
-@Controller
+@RestController
 public class DatabaseViewController {
 
     private final UserRepository userRepository;
@@ -17,15 +13,25 @@ public class DatabaseViewController {
     }
 
     @GetMapping("/db")
-    public String viewDatabase(Model model) {
-        List<User> users = userRepository.findAll();
-        for(User u : users) {
-            if(u.getUpdatedAt() != null) {
-                u.setUpdatedAtDate(new Date(u.getUpdatedAt()));
-            }
+    public String viewDatabase() {
+        StringBuilder sb = new StringBuilder();
+
+        for (User u : userRepository.findAll()) {
+            String date = u.getUpdatedAt() != null
+                    ? new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss")
+                    .format(new java.util.Date(u.getUpdatedAt()))
+                    : "N/A";
+
+            sb.append(u.getUuid())
+                    .append(" | ")
+                    .append(u.getModVersion())
+                    .append(" | ")
+                    .append(u.getPlayerName())
+                    .append(" | ")
+                    .append(date)
+                    .append("\n");
         }
 
-        model.addAttribute("users", users);
-        return "database";
+        return sb.toString();
     }
 }
