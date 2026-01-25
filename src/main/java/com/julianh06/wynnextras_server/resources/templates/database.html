@@ -22,11 +22,11 @@
         <th>Datum</th>
     </tr>
 
-    <tr th:each="u : ${users}">
-        <td th:text="${u.uuid}"></td>
-        <td th:text="${u.modVersion}"></td>
-        <td th:text="${u.playerName}"></td>
-        <td th:text="${#dates.format(
+    <tr> th:each="u : ${users}">
+        <td> th:text="${u.uuid}"></td>
+        <td> th:text="${u.modVersion}"></td>
+        <td> th:text="${u.playerName}"></td>
+        <td> th:text="${#dates.format(
             new java.util.Date(u.updatedAt),
             'dd.MM.yyyy HH:mm:ss'
         )}"></td>
