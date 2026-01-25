@@ -6,6 +6,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @SpringBootApplication
 @RestController
 public class WynnextrasServerApplication {
@@ -25,21 +27,29 @@ public class WynnextrasServerApplication {
 	public String viewDatabase() {
 		StringBuilder sb = new StringBuilder();
 
-		for (User u : userRepository.findAll()) {
+		List<User> users = userRepository.findAll();
+		users.sort((u1, u2) -> {
+			if (u1.getUpdatedAt() == null && u2.getUpdatedAt() == null) return 0;
+			if (u1.getUpdatedAt() == null) return -1;
+			if (u2.getUpdatedAt() == null) return 1;
+			return u1.getUpdatedAt().compareTo(u2.getUpdatedAt());
+		});
+
+		for (User u : users) {
 			String date = u.getUpdatedAt() != null
 					? new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss")
 					.format(new java.util.Date(u.getUpdatedAt()))
 					: "N/A";
 
-			sb.append(u.getUuid())
-					.append(" | ")
-					.append(u.getModVersion())
-					.append(" | ")
-					.append(u.getPlayerName())
+			sb.append(u.getPlayerName())
 					.append(" | ")
 					.append(date)
+					.append(" | ")
+					.append(u.getModVersion())
 					.append("<br>");
 		}
+
+		sb.append("<br>Total entries: ").append(users.size());
 
 		return sb.toString();
 	}
