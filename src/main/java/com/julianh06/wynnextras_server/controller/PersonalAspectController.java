@@ -4,6 +4,7 @@ import com.julianh06.wynnextras_server.dto.PersonalAspectDto;
 import com.julianh06.wynnextras_server.entity.PersonalAspect;
 import com.julianh06.wynnextras_server.repository.PersonalAspectRepository;
 import com.julianh06.wynnextras_server.service.MojangAuthService;
+import com.julianh06.wynnextras_server.service.WynnAPIKeyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,39 +33,74 @@ public class PersonalAspectController {
     @Autowired
     private MojangAuthService mojangAuth;
 
+    @Autowired
+    private WynnAPIKeyService wynnApiKeyService;
+
     /**
      * Upload personal aspects
      * POST /user
-     * Headers:
-     *   - Username (required) - Minecraft username
-     *   - Server-ID (required) - Shared secret for Mojang verification
-     * Body: { "playerName": "...", "modVersion": "...", "aspects": [...] }
+     *
+     * Supports dual authentication:
+     * 1. Mojang Sessionserver (new mod):
+     *    Headers: Username, Server-ID
+     * 2. Wynncraft API Key (old mod):
+     *    Headers: Wynncraft-Api-Key
+     *    Body must include: uuid
+     *
+     * Body: { "playerName": "...", "modVersion": "...", "aspects": [...], "uuid": "..." (old mod only) }
      */
     @PostMapping
     @Transactional
     public ResponseEntity<?> uploadAspects(
             @RequestBody PersonalAspectDto.UploadRequest request,
-            @RequestHeader("Username") String username,
-            @RequestHeader("Server-ID") String serverId) {
+            @RequestHeader(value = "Username", required = false) String username,
+            @RequestHeader(value = "Server-ID", required = false) String serverId,
+            @RequestHeader(value = "Wynncraft-Api-Key", required = false) String wynnApiKey) {
 
-        // Validate headers
-        if (username == null || username.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Missing Username header");
-        }
-        if (serverId == null || serverId.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Missing Server-ID header");
-        }
+        String verifiedUuid;
+        String verifiedUsername;
 
-        // Authenticate with Mojang
-        MojangAuthService.AuthResult authResult = mojangAuth.verifyPlayer(username, serverId);
-        if (!authResult.isSuccess()) {
-            logger.warn("Authentication failed for user {}: {}", username, authResult.getError());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(createResponse("error", authResult.getError()));
-        }
+        // Determine authentication method
+        boolean hasMojangAuth = username != null && !username.trim().isEmpty()
+                             && serverId != null && !serverId.trim().isEmpty();
+        boolean hasWynnAuth = wynnApiKey != null && !wynnApiKey.trim().isEmpty();
 
-        String verifiedUuid = authResult.getUuid();
-        String verifiedUsername = authResult.getUsername();
+        if (hasMojangAuth) {
+            // New mod: Mojang Sessionserver authentication
+            logger.debug("Using Mojang authentication for user: {}", username);
+            MojangAuthService.AuthResult authResult = mojangAuth.verifyPlayer(username, serverId);
+            if (!authResult.isSuccess()) {
+                logger.warn("Mojang authentication failed for user {}: {}", username, authResult.getError());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createResponse("error", authResult.getError()));
+            }
+            verifiedUuid = authResult.getUuid();
+            verifiedUsername = authResult.getUsername();
+
+        } else if (hasWynnAuth) {
+            // Old mod: Wynncraft API Key authentication
+            logger.debug("Using Wynncraft API key authentication");
+
+            // Old mod sends UUID in request body
+            if (request.getUuid() == null || request.getUuid().trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(createResponse("error", "UUID required in request body when using Wynncraft API key"));
+            }
+
+            WynnAPIKeyService.AuthResult authResult = wynnApiKeyService.validateApiKey(wynnApiKey, request.getUuid());
+            if (!authResult.isSuccess()) {
+                logger.warn("Wynncraft API key validation failed: {}", authResult.getError());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createResponse("error", authResult.getError()));
+            }
+            verifiedUuid = authResult.getUuid();
+            verifiedUsername = authResult.getUsername();
+
+        } else {
+            // No valid authentication provided
+            return ResponseEntity.badRequest()
+                .body(createResponse("error", "Authentication required: provide either (Username + Server-ID) or Wynncraft-Api-Key"));
+        }
 
         // Validate request
         if (request.getAspects() == null || request.getAspects().isEmpty()) {

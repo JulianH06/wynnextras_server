@@ -32,6 +32,10 @@ public class PersonalAspectDto {
         private String modVersion;
         private List<AspectData> aspects;
 
+        // Optional fields for backward compatibility with old mod versions
+        private String uuid;
+        private Long updatedAt;
+
         public UploadRequest() {}
 
         public String getPlayerName() { return playerName; }
@@ -42,6 +46,13 @@ public class PersonalAspectDto {
 
         public List<AspectData> getAspects() { return aspects; }
         public void setAspects(List<AspectData> aspects) { this.aspects = aspects; }
+
+        // Backward compatibility getters/setters
+        public String getUuid() { return uuid; }
+        public void setUuid(String uuid) { this.uuid = uuid; }
+
+        public Long getUpdatedAt() { return updatedAt; }
+        public void setUpdatedAt(Long updatedAt) { this.updatedAt = updatedAt; }
     }
 
     public static class PlayerAspectsResponse {

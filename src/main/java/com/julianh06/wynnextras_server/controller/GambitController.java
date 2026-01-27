@@ -3,6 +3,7 @@ package com.julianh06.wynnextras_server.controller;
 import com.julianh06.wynnextras_server.dto.GambitSubmissionDto;
 import com.julianh06.wynnextras_server.service.GambitService;
 import com.julianh06.wynnextras_server.service.MojangAuthService;
+import com.julianh06.wynnextras_server.service.WynnAPIKeyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,37 +25,61 @@ public class GambitController {
     @Autowired
     private MojangAuthService mojangAuth;
 
+    @Autowired
+    private WynnAPIKeyService wynnApiKeyService;
+
     /**
      * Submit today's gambits
      * POST /gambit
-     * Headers:
-     *   - Username (required) - Minecraft username
-     *   - Server-ID (required) - Shared secret for Mojang verification
+     *
+     * Supports dual authentication:
+     * 1. Mojang Sessionserver (new mod): Headers: Username, Server-ID
+     * 2. Wynncraft API Key (future/compatibility): Headers: Wynncraft-Api-Key, Player-UUID
+     *
      * Body: { "gambits": [{"name": "...", "description": "..."}] }
      */
     @PostMapping
     public ResponseEntity<?> submitGambits(
             @RequestBody GambitSubmissionDto submission,
-            @RequestHeader("Username") String username,
-            @RequestHeader("Server-ID") String serverId) {
+            @RequestHeader(value = "Username", required = false) String username,
+            @RequestHeader(value = "Server-ID", required = false) String serverId,
+            @RequestHeader(value = "Wynncraft-Api-Key", required = false) String wynnApiKey,
+            @RequestHeader(value = "Player-UUID", required = false) String playerUuid) {
 
-        // Validate headers
-        if (username == null || username.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Missing Username header");
-        }
-        if (serverId == null || serverId.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body("Missing Server-ID header");
-        }
+        String verifiedUsername;
 
-        // Authenticate with Mojang
-        MojangAuthService.AuthResult authResult = mojangAuth.verifyPlayer(username, serverId);
-        if (!authResult.isSuccess()) {
-            logger.warn("Authentication failed for user {}: {}", username, authResult.getError());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(createResponse("error", authResult.getError(), null));
-        }
+        // Determine authentication method
+        boolean hasMojangAuth = username != null && !username.trim().isEmpty()
+                             && serverId != null && !serverId.trim().isEmpty();
+        boolean hasWynnAuth = wynnApiKey != null && !wynnApiKey.trim().isEmpty()
+                           && playerUuid != null && !playerUuid.trim().isEmpty();
 
-        String verifiedUsername = authResult.getUsername();
+        if (hasMojangAuth) {
+            // Mojang Sessionserver authentication
+            MojangAuthService.AuthResult authResult = mojangAuth.verifyPlayer(username, serverId);
+            if (!authResult.isSuccess()) {
+                logger.warn("Mojang authentication failed for user {}: {}", username, authResult.getError());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createResponse("error", authResult.getError(), null));
+            }
+            verifiedUsername = authResult.getUsername();
+
+        } else if (hasWynnAuth) {
+            // Wynncraft API Key authentication
+            WynnAPIKeyService.AuthResult authResult = wynnApiKeyService.validateApiKey(wynnApiKey, playerUuid);
+            if (!authResult.isSuccess()) {
+                logger.warn("Wynncraft API key validation failed: {}", authResult.getError());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createResponse("error", authResult.getError(), null));
+            }
+            verifiedUsername = authResult.getUsername();
+
+        } else {
+            return ResponseEntity.badRequest()
+                .body(createResponse("error",
+                    "Authentication required: provide either (Username + Server-ID) or (Wynncraft-Api-Key + Player-UUID)",
+                    null));
+        }
 
         // Submit gambits
         try {
