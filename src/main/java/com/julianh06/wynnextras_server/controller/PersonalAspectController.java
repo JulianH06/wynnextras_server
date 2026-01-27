@@ -179,6 +179,36 @@ public class PersonalAspectController {
         }
     }
 
+    /**
+     * Get all players who have aspects in the database
+     * GET /user/list
+     * No authentication required - public list
+     * Returns players ordered by most recently updated first
+     */
+    @GetMapping("/list")
+    public ResponseEntity<?> getAllPlayers() {
+        try {
+            List<Object[]> results = personalAspectRepo.findAllPlayersWithAspects();
+
+            List<PersonalAspectDto.PlayerListEntry> players = results.stream()
+                .map(row -> new PersonalAspectDto.PlayerListEntry(
+                    (String) row[0],  // playerUuid
+                    (String) row[1],  // playerName
+                    (String) row[2],  // modVersion
+                    ((java.time.Instant) row[3]).toEpochMilli(),  // lastUpdated
+                    ((Number) row[4]).longValue()  // aspectCount
+                ))
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(players);
+
+        } catch (Exception e) {
+            logger.error("Error fetching player list", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Failed to fetch player list");
+        }
+    }
+
     private java.util.Map<String, String> createResponse(String status, String message) {
         java.util.Map<String, String> response = new HashMap<>();
         response.put("status", status);

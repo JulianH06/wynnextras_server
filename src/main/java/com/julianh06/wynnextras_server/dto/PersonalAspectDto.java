@@ -99,4 +99,37 @@ public class PersonalAspectDto {
         public long getMaxAspectCount() { return maxAspectCount; }
         public void setMaxAspectCount(long maxAspectCount) { this.maxAspectCount = maxAspectCount; }
     }
+
+    public static class PlayerListEntry {
+        private String playerUuid;
+        private String playerName;
+        private String modVersion;
+        private long lastUpdated;
+        private long aspectCount;
+
+        public PlayerListEntry() {}
+
+        public PlayerListEntry(String playerUuid, String playerName, String modVersion, long lastUpdated, long aspectCount) {
+            this.playerUuid = playerUuid;
+            this.playerName = playerName;
+            this.modVersion = modVersion;
+            this.lastUpdated = lastUpdated;
+            this.aspectCount = aspectCount;
+        }
+
+        public String getPlayerUuid() { return playerUuid; }
+        public void setPlayerUuid(String playerUuid) { this.playerUuid = playerUuid; }
+
+        public String getPlayerName() { return playerName; }
+        public void setPlayerName(String playerName) { this.playerName = playerName; }
+
+        public String getModVersion() { return modVersion; }
+        public void setModVersion(String modVersion) { this.modVersion = modVersion; }
+
+        public long getLastUpdated() { return lastUpdated; }
+        public void setLastUpdated(long lastUpdated) { this.lastUpdated = lastUpdated; }
+
+        public long getAspectCount() { return aspectCount; }
+        public void setAspectCount(long aspectCount) { this.aspectCount = aspectCount; }
+    }
 }

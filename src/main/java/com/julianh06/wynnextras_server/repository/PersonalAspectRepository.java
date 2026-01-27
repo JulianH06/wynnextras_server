@@ -26,4 +26,17 @@ public interface PersonalAspectRepository extends JpaRepository<PersonalAspect, 
         LIMIT :limit
         """)
     List<Object[]> findTopPlayersByMaxAspects(int limit);
+
+    /**
+     * Get all players who have aspects in the database
+     * Returns list of [playerUuid, playerName, modVersion, updatedAt, aspectCount]
+     * Ordered by most recently updated first
+     */
+    @Query("""
+        SELECT p.playerUuid, p.playerName, p.modVersion, MAX(p.updatedAt), COUNT(*)
+        FROM PersonalAspect p
+        GROUP BY p.playerUuid, p.playerName, p.modVersion
+        ORDER BY MAX(p.updatedAt) DESC
+        """)
+    List<Object[]> findAllPlayersWithAspects();
 }
