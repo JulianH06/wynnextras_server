@@ -42,7 +42,6 @@ public class LootPoolController {
             @RequestBody LootPoolSubmissionDto submission,
             @RequestHeader(value = "Username", required = false) String username,
             @RequestHeader(value = "Server-ID", required = false) String serverId,
-            @RequestHeader(value = "Wynncraft-Api-Key", required = false, defaultValue = "") String wynnApiKey,
             @RequestHeader(value = "Player-UUID", required = false) String playerUuid) {
 
         // Validate raid type from body
@@ -61,24 +60,12 @@ public class LootPoolController {
         // Determine authentication method
         boolean hasMojangAuth = username != null && !username.trim().isEmpty()
                              && serverId != null && !serverId.trim().isEmpty();
-        boolean hasWynnAuth = wynnApiKey != null && !wynnApiKey.trim().isEmpty()
-                           && playerUuid != null && !playerUuid.trim().isEmpty();
 
         if (hasMojangAuth) {
             // Mojang Sessionserver authentication
             MojangAuthService.AuthResult authResult = mojangAuth.verifyPlayer(username, serverId);
             if (!authResult.isSuccess()) {
                 logger.warn("Mojang authentication failed for user {}: {}", username, authResult.getError());
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("status", "error", "message", authResult.getError()));
-            }
-            verifiedUsername = authResult.getUsername();
-
-        } else if (hasWynnAuth) {
-            // Wynncraft API Key authentication
-            WynnAPIKeyService.AuthResult authResult = wynnApiKeyService.validateApiKey(wynnApiKey, playerUuid);
-            if (!authResult.isSuccess()) {
-                logger.warn("Wynncraft API key validation failed: {}", authResult.getError());
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("status", "error", "message", authResult.getError()));
             }
