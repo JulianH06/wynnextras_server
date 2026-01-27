@@ -54,10 +54,23 @@ public class LootPoolService {
 
         String aspectsJson = serializeAspects(sortedAspects);
 
-        // Save submission
-        RaidLootPoolSubmission submission = new RaidLootPoolSubmission(raidType, username, aspectsJson, weekId);
-        submissionRepo.save(submission);
-        logger.info("Saved loot pool submission for {} week {} from {}", raidType, weekId, username);
+        // Check if user already submitted for this raid/week
+        Optional<RaidLootPoolSubmission> userExistingSubmission =
+            submissionRepo.findByRaidTypeAndWeekIdentifierAndSubmittedBy(raidType, weekId, username);
+
+        if (userExistingSubmission.isPresent()) {
+            // Update existing submission
+            RaidLootPoolSubmission submission = userExistingSubmission.get();
+            submission.setAspectsJson(aspectsJson);
+            submission.setSubmittedAt(java.time.Instant.now());
+            submissionRepo.save(submission);
+            logger.info("Updated loot pool submission for {} week {} from {}", raidType, weekId, username);
+        } else {
+            // Save new submission
+            RaidLootPoolSubmission submission = new RaidLootPoolSubmission(raidType, username, aspectsJson, weekId);
+            submissionRepo.save(submission);
+            logger.info("Saved new loot pool submission for {} week {} from {}", raidType, weekId, username);
+        }
 
         // Check if should approve
         return checkAndApprove(raidType, weekId, aspectsJson, username);
@@ -104,44 +117,49 @@ public class LootPoolService {
             .filter(s -> s.getAspectsJson().equals(aspectsJson))
             .collect(Collectors.toList());
 
-        int matchCount = matchingSubmissions.size();
-        logger.info("Found {} matching submissions for {} week {}", matchCount, raidType, weekId);
+        // Count UNIQUE users who submitted this exact loot pool
+        long uniqueUserCount = matchingSubmissions.stream()
+            .map(RaidLootPoolSubmission::getSubmittedBy)
+            .distinct()
+            .count();
 
-        // Check for lock (10+ matching submissions)
-        if (matchCount >= 10) {
-            logger.info("Locking loot pool for {} week {} with {} submissions", raidType, weekId, matchCount);
+        logger.info("Found {} unique users with matching submissions for {} week {}", uniqueUserCount, raidType, weekId);
+
+        // Check for lock (10+ unique users)
+        if (uniqueUserCount >= 10) {
+            logger.info("Locking loot pool for {} week {} with {} unique users", raidType, weekId, uniqueUserCount);
 
             Optional<RaidLootPoolApproved> existing = approvedRepo.findByRaidTypeAndWeekIdentifier(raidType, weekId);
             if (existing.isPresent()) {
                 RaidLootPoolApproved approved = existing.get();
                 approved.setLocked(true);
-                approved.setSubmissionCount(matchCount);
+                approved.setSubmissionCount((int) uniqueUserCount);
                 approvedRepo.save(approved);
             } else {
-                RaidLootPoolApproved approved = new RaidLootPoolApproved(raidType, aspectsJson, weekId, matchCount, true);
+                RaidLootPoolApproved approved = new RaidLootPoolApproved(raidType, aspectsJson, weekId, (int) uniqueUserCount, true);
                 approvedRepo.save(approved);
             }
             return deserializeAspects(aspectsJson);
         }
 
-        // Check for approval (3+ matching submissions)
-        if (matchCount >= 3) {
-            logger.info("Approving loot pool for {} week {} with {} submissions", raidType, weekId, matchCount);
+        // Check for approval (3+ unique users)
+        if (uniqueUserCount >= 3) {
+            logger.info("Approving loot pool for {} week {} with {} unique users", raidType, weekId, uniqueUserCount);
 
             Optional<RaidLootPoolApproved> existing = approvedRepo.findByRaidTypeAndWeekIdentifier(raidType, weekId);
             if (existing.isPresent()) {
                 RaidLootPoolApproved approved = existing.get();
                 approved.setAspectsJson(aspectsJson);
-                approved.setSubmissionCount(matchCount);
+                approved.setSubmissionCount((int) uniqueUserCount);
                 approvedRepo.save(approved);
             } else {
-                RaidLootPoolApproved approved = new RaidLootPoolApproved(raidType, aspectsJson, weekId, matchCount, false);
+                RaidLootPoolApproved approved = new RaidLootPoolApproved(raidType, aspectsJson, weekId, (int) uniqueUserCount, false);
                 approvedRepo.save(approved);
             }
             return deserializeAspects(aspectsJson);
         }
 
-        logger.info("Not enough matching submissions yet ({}/3) for {} week {}", matchCount, raidType, weekId);
+        logger.info("Not enough unique users yet ({}/3) for {} week {}", uniqueUserCount, raidType, weekId);
         return null;
     }
 
