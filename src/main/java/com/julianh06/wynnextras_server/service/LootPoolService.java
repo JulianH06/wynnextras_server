@@ -89,7 +89,7 @@ public class LootPoolService {
      * Returns the approved pool if approved, null otherwise
      */
     @Transactional
-    private LootPoolSubmissionDto checkAndApprove(String raidType, String weekId, String aspectsJson, String submittingUsername) {
+    protected LootPoolSubmissionDto checkAndApprove(String raidType, String weekId, String aspectsJson, String submittingUsername) {
         // Check if verified user - instant approval
         if (isVerifiedUser(submittingUsername)) {
             logger.info("Verified user {} submitted loot pool for {} week {}, auto-approving", submittingUsername, raidType, weekId);

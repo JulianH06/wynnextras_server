@@ -77,17 +77,14 @@ public class MojangAuthService {
 
                 logger.info("Successfully authenticated player {} (UUID: {})", verifiedUsername, verifiedUuid);
                 return AuthResult.success(verifiedUuid, verifiedUsername);
-
             } else if (response.statusCode() == 204) {
                 // No Content - authentication failed
                 logger.warn("Authentication failed for username {}: Invalid session", username);
                 return AuthResult.error("Authentication failed - invalid session");
-
             } else {
                 logger.error("Mojang sessionserver returned unexpected status: {}", response.statusCode());
                 return AuthResult.error("Authentication service error");
             }
-
         } catch (Exception e) {
             logger.error("Error verifying player with Mojang", e);
             return AuthResult.error("Authentication failed - " + e.getMessage());

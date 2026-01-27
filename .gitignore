@@ -1,3 +1,4 @@
+HELP.md
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
@@ -33,6 +34,12 @@ build/
 
 ### Mac ###
 .DS_Store
+
+### DB ###
+/data/
+*.db*
+*.mv.db
+*.trace.db
 
 ### Application Properties with Secrets ###
 application-local.properties

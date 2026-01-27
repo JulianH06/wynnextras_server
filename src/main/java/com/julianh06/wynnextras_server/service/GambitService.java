@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.julianh06.wynnextras_server.dto.GambitSubmissionDto;
 import com.julianh06.wynnextras_server.entity.GambitApproved;
 import com.julianh06.wynnextras_server.entity.GambitSubmission;
+import com.julianh06.wynnextras_server.entity.RaidLootPoolApproved;
 import com.julianh06.wynnextras_server.repository.GambitApprovedRepository;
 import com.julianh06.wynnextras_server.repository.GambitSubmissionRepository;
 import com.julianh06.wynnextras_server.util.TimeUtils;
@@ -78,7 +79,7 @@ public class GambitService {
      * Returns the approved gambits if approved, null otherwise
      */
     @Transactional
-    private GambitSubmissionDto checkAndApprove(String dayId, String gambitsJson) {
+    protected GambitSubmissionDto checkAndApprove(String dayId, String gambitsJson) {
         // Get all submissions for today with matching JSON
         List<GambitSubmission> allSubmissions = submissionRepo.findByDayIdentifier(dayId);
         List<GambitSubmission> matchingSubmissions = allSubmissions.stream()
@@ -88,9 +89,9 @@ public class GambitService {
         int matchCount = matchingSubmissions.size();
         logger.info("Found {} matching gambit submissions for day {}", matchCount, dayId);
 
-        // Require 2+ matching submissions for approval and lock
-        if (matchCount >= 2) {
-            logger.info("Approving and locking gambits for day {} with {} submissions", dayId, matchCount);
+        // Check for lock (10+ matching submissions)
+        if (matchCount >= 10) {
+            logger.info("Locking gambits for day {} with {} submissions", dayId, matchCount);
 
             Optional<GambitApproved> existing = approvedRepo.findByDayIdentifier(dayId);
             if (existing.isPresent()) {
@@ -105,7 +106,24 @@ public class GambitService {
             return deserializeGambits(gambitsJson);
         }
 
-        logger.info("Not enough matching submissions yet ({}/2) for day {}", matchCount, dayId);
+        // Require 3+ matching submissions for approval and lock
+        if (matchCount >= 3) {
+            logger.info("Approving gambits for day {} with {} submissions", dayId, matchCount);
+
+            Optional<GambitApproved> existing = approvedRepo.findByDayIdentifier(dayId);
+            if (existing.isPresent()) {
+                GambitApproved approved = existing.get();
+                approved.setGambitsJson(gambitsJson);
+                approved.setLocked(false);
+                approvedRepo.save(approved);
+            } else {
+                GambitApproved approved = new GambitApproved(gambitsJson, dayId, false);
+                approvedRepo.save(approved);
+            }
+            return deserializeGambits(gambitsJson);
+        }
+
+        logger.info("Not enough matching submissions yet ({}/3) for day {}", matchCount, dayId);
         return null;
     }
 
