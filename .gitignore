@@ -1,6 +1,5 @@
-HELP.md
 target/
-.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
@@ -32,11 +31,9 @@ build/
 ### VS Code ###
 .vscode/
 
-### DB ###
-/data/
-*.db*
-*.mv.db
-*.trace.db
+### Mac ###
+.DS_Store
 
-### Local config overrides ###
+### Application Properties with Secrets ###
 application-local.properties
+application-prod.properties
