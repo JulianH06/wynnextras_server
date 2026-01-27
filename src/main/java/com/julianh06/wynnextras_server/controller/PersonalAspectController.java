@@ -148,6 +148,37 @@ public class PersonalAspectController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Get leaderboard of players with most max aspects
+     * GET /user/leaderboard?limit=5
+     * No authentication required - public leaderboard
+     */
+    @GetMapping("/leaderboard")
+    public ResponseEntity<?> getLeaderboard(@RequestParam(defaultValue = "5") int limit) {
+        if (limit < 1 || limit > 100) {
+            return ResponseEntity.badRequest().body("Limit must be between 1 and 100");
+        }
+
+        try {
+            List<Object[]> results = personalAspectRepo.findTopPlayersByMaxAspects(limit);
+
+            List<PersonalAspectDto.LeaderboardEntry> leaderboard = results.stream()
+                .map(row -> new PersonalAspectDto.LeaderboardEntry(
+                    (String) row[0],  // playerUuid
+                    (String) row[1],  // playerName
+                    ((Number) row[2]).longValue()  // maxAspectCount
+                ))
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(leaderboard);
+
+        } catch (Exception e) {
+            logger.error("Error fetching leaderboard", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Failed to fetch leaderboard");
+        }
+    }
+
     private java.util.Map<String, String> createResponse(String status, String message) {
         java.util.Map<String, String> response = new HashMap<>();
         response.put("status", status);

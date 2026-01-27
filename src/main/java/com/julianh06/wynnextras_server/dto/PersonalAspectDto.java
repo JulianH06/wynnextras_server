@@ -76,4 +76,27 @@ public class PersonalAspectDto {
         public List<AspectData> getAspects() { return aspects; }
         public void setAspects(List<AspectData> aspects) { this.aspects = aspects; }
     }
+
+    public static class LeaderboardEntry {
+        private String playerUuid;
+        private String playerName;
+        private long maxAspectCount;
+
+        public LeaderboardEntry() {}
+
+        public LeaderboardEntry(String playerUuid, String playerName, long maxAspectCount) {
+            this.playerUuid = playerUuid;
+            this.playerName = playerName;
+            this.maxAspectCount = maxAspectCount;
+        }
+
+        public String getPlayerUuid() { return playerUuid; }
+        public void setPlayerUuid(String playerUuid) { this.playerUuid = playerUuid; }
+
+        public String getPlayerName() { return playerName; }
+        public void setPlayerName(String playerName) { this.playerName = playerName; }
+
+        public long getMaxAspectCount() { return maxAspectCount; }
+        public void setMaxAspectCount(long maxAspectCount) { this.maxAspectCount = maxAspectCount; }
+    }
 }

@@ -1,7 +1,7 @@
 package com.julianh06.wynnextras_server.service;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,6 +27,7 @@ public class MojangAuthService {
     private static final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     // Cache to prevent replay attacks - serverId can only be used once within 30 seconds
     private final Map<String, Long> usedServerIds = new ConcurrentHashMap<>();
@@ -63,9 +64,9 @@ public class MojangAuthService {
 
             if (response.statusCode() == 200) {
                 // Parse response
-                JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
-                String verifiedUuid = json.get("id").getAsString();
-                String verifiedUsername = json.get("name").getAsString();
+                JsonNode json = objectMapper.readTree(response.body());
+                String verifiedUuid = json.get("id").asText();
+                String verifiedUsername = json.get("name").asText();
 
                 // Normalize UUID (remove dashes if present, lowercase)
                 verifiedUuid = verifiedUuid.replace("-", "").toLowerCase();

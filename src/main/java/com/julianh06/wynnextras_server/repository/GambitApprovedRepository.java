@@ -1,5 +1,5 @@
 package com.julianh06.wynnextras_server.repository;
-nimport com.julianh06.wynnextras_server.entity.GambitApproved;
+import com.julianh06.wynnextras_server.entity.GambitApproved;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
