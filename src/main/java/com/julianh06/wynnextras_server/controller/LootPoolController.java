@@ -43,7 +43,7 @@ public class LootPoolController {
             @RequestBody LootPoolSubmissionDto submission,
             @RequestHeader(value = "Username", required = false) String username,
             @RequestHeader(value = "Server-ID", required = false) String serverId,
-            @RequestHeader(value = "Wynncraft-Api-Key", required = false) String wynnApiKey,
+            @RequestHeader(value = "Wynncraft-Api-Key", required = false, defaultValue = "") String wynnApiKey,
             @RequestHeader(value = "Player-UUID", required = false) String playerUuid) {
 
         // Validate raid type
