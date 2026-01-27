@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/lootpool")
+@RequestMapping("/raid")
 public class LootPoolController {
     private static final Logger logger = LoggerFactory.getLogger(LootPoolController.class);
 
@@ -29,27 +29,31 @@ public class LootPoolController {
 
     /**
      * Submit a loot pool for a raid
-     * POST /lootpool/{raidType}
+     * POST /raid/loot-pool
      *
      * Supports dual authentication:
      * 1. Mojang Sessionserver (new mod): Headers: Username, Server-ID
      * 2. Wynncraft API Key (future/compatibility): Headers: Wynncraft-Api-Key, Player-UUID
      *
-     * Body: { "aspects": [{"name": "...", "rarity": "...", "requiredClass": "..."}] }
+     * Body: { "raidType": "...", "aspects": [{"name": "...", "rarity": "...", "requiredClass": "..."}] }
      */
-    @PostMapping("/{raidType}")
+    @PostMapping("/loot-pool")
     public ResponseEntity<?> submitLootPool(
-            @PathVariable String raidType,
             @RequestBody LootPoolSubmissionDto submission,
             @RequestHeader(value = "Username", required = false) String username,
             @RequestHeader(value = "Server-ID", required = false) String serverId,
             @RequestHeader(value = "Wynncraft-Api-Key", required = false, defaultValue = "") String wynnApiKey,
             @RequestHeader(value = "Player-UUID", required = false) String playerUuid) {
 
-        // Validate raid type
+        // Validate raid type from body
+        String raidType = submission.getRaidType();
+        if (raidType == null || raidType.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Missing raidType in request body");
+        }
+
         if (!isValidRaidType(raidType)) {
             logger.warn("Invalid raid type: {}", raidType);
-            return ResponseEntity.badRequest().body("Invalid raid type. Must be NOTG, NOL, TCC, or TNA");
+            return ResponseEntity.badRequest().body("Invalid raid type");
         }
 
         String verifiedUsername;
@@ -116,12 +120,16 @@ public class LootPoolController {
 
     /**
      * Get the approved loot pool for a raid
-     * GET /lootpool/{raidType}
+     * GET /raid/loot-pool?raidType=...
      */
-    @GetMapping("/{raidType}")
-    public ResponseEntity<?> getLootPool(@PathVariable String raidType) {
+    @GetMapping("/loot-pool")
+    public ResponseEntity<?> getLootPool(@RequestParam String raidType) {
+        if (raidType == null || raidType.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Missing raidType parameter");
+        }
+
         if (!isValidRaidType(raidType)) {
-            return ResponseEntity.badRequest().body("Invalid raid type. Must be NOTG, NOL, TCC, or TNA");
+            return ResponseEntity.badRequest().body("Invalid raid type");
         }
 
         LootPoolSubmissionDto lootPool = lootPoolService.getApprovedLootPool(raidType);
@@ -134,8 +142,13 @@ public class LootPoolController {
     }
 
     private boolean isValidRaidType(String raidType) {
+        // Accept both short codes and full names
         return raidType.equals("NOTG") || raidType.equals("NOL") ||
-               raidType.equals("TCC") || raidType.equals("TNA");
+               raidType.equals("TCC") || raidType.equals("TNA") ||
+               raidType.equals("Nest of the Grootslangs") ||
+               raidType.equals("Orphion's Nexus of Light") ||
+               raidType.equals("The Canyon Colossus") ||
+               raidType.equals("The Nameless Anomaly");
     }
 
     private static class Map<K, V> extends java.util.HashMap<K, V> {

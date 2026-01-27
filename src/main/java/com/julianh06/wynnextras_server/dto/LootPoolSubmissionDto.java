@@ -3,12 +3,21 @@ package com.julianh06.wynnextras_server.dto;
 import java.util.List;
 
 public class LootPoolSubmissionDto {
+    private String raidType;
     private List<AspectDto> aspects;
 
     public LootPoolSubmissionDto() {}
 
     public LootPoolSubmissionDto(List<AspectDto> aspects) {
         this.aspects = aspects;
+    }
+
+    public String getRaidType() {
+        return raidType;
+    }
+
+    public void setRaidType(String raidType) {
+        this.raidType = raidType;
     }
 
     public List<AspectDto> getAspects() {
