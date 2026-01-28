@@ -94,7 +94,7 @@ public class LootPoolService {
      * Check if username is in verified user list
      */
     public boolean isVerifiedUser(String username) {
-        return verifiedUserRepo.existsByUsername(username);
+        return verifiedUserRepo.existsByUsername(username.toLowerCase());
     }
 
     /**
