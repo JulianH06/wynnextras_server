@@ -117,7 +117,20 @@ public class LootPoolService {
         // Check if verified user - instant approval
         if (isVerifiedUser(submittingUsername)) {
             logger.info("Verified user {} submitted loot pool for {} week {}, auto-approving", submittingUsername, raidType, weekId);
-            RaidLootPoolApproved approved = new RaidLootPoolApproved(raidType, aspectsJson, weekId, 1, false);
+            Optional<RaidLootPoolApproved> existing =
+                    approvedRepo.findByRaidTypeAndWeekIdentifier(raidType, weekId);
+
+            RaidLootPoolApproved approved;
+            if (existing.isPresent()) {
+                approved = existing.get();
+                approved.setAspectsJson(aspectsJson);
+                approved.setSubmissionCount(1);
+            } else {
+                approved = new RaidLootPoolApproved(
+                        raidType, aspectsJson, weekId, 1, false
+                );
+            }
+
             approvedRepo.save(approved);
             return deserializeAspects(aspectsJson);
         }
