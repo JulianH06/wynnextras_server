@@ -29,9 +29,30 @@ public class MojangAuthService {
             .build();
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Cache to prevent replay attacks - serverId can only be used once within 30 seconds
-    private final Map<String, Long> usedServerIds = new ConcurrentHashMap<>();
-    private static final long SERVER_ID_EXPIRY_MS = 30000; // 30 seconds
+    // Cache successful verifications - allows same serverId to be reused within window
+    // This is necessary because the client caches auth and sends multiple requests with the same serverId
+    // Longer cache = fewer Mojang API calls, and it's safe because username must match
+    private final Map<String, CachedAuth> authCache = new ConcurrentHashMap<>();
+    private static final long CACHE_EXPIRY_MS = 300000; // 5 minutes
+
+    /**
+     * Cached authentication result
+     */
+    private static class CachedAuth {
+        final String uuid;
+        final String username;
+        final long timestamp;
+
+        CachedAuth(String uuid, String username) {
+            this.uuid = uuid;
+            this.username = username;
+            this.timestamp = System.currentTimeMillis();
+        }
+
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > CACHE_EXPIRY_MS;
+        }
+    }
 
     /**
      * Verify a player's authentication with Mojang
@@ -41,12 +62,22 @@ public class MojangAuthService {
      * @return AuthResult with verified UUID and username, or error
      */
     public AuthResult verifyPlayer(String username, String serverId) {
-        // Check if serverId was already used (prevent replay attacks)
-        Long lastUsed = usedServerIds.get(serverId);
-        if (lastUsed != null && System.currentTimeMillis() - lastUsed < SERVER_ID_EXPIRY_MS) {
-            logger.warn("Replay attack detected: serverId {} already used", serverId);
-            return AuthResult.error("Authentication token already used");
+        // Check if we have a cached verification for this serverId
+        CachedAuth cached = authCache.get(serverId);
+        if (cached != null && !cached.isExpired()) {
+            // Verify the username matches (security check)
+            if (cached.username.equalsIgnoreCase(username)) {
+                logger.debug("Using cached auth for {} (serverId: {})", username, serverId.substring(0, 8) + "...");
+                return AuthResult.success(cached.uuid, cached.username);
+            } else {
+                // Different username with same serverId - suspicious
+                logger.warn("ServerId reuse attempt with different username: cached={}, requested={}", cached.username, username);
+                return AuthResult.error("Authentication token mismatch");
+            }
         }
+
+        // Clean up expired entries if cache is getting large
+        cleanupExpiredCache();
 
         try {
             // Call Mojang's sessionserver to verify the player
@@ -71,9 +102,8 @@ public class MojangAuthService {
                 // Normalize UUID (remove dashes if present, lowercase)
                 verifiedUuid = verifiedUuid.replace("-", "").toLowerCase();
 
-                // Mark serverId as used
-                usedServerIds.put(serverId, System.currentTimeMillis());
-                cleanupExpiredServerIds();
+                // Cache the successful verification
+                authCache.put(serverId, new CachedAuth(verifiedUuid, verifiedUsername));
 
                 logger.info("Successfully authenticated player {} (UUID: {})", verifiedUsername, verifiedUuid);
                 return AuthResult.success(verifiedUuid, verifiedUsername);
@@ -92,13 +122,11 @@ public class MojangAuthService {
     }
 
     /**
-     * Clean up expired serverIds to prevent memory leak
+     * Clean up expired cache entries to prevent memory leak
      */
-    private void cleanupExpiredServerIds() {
-        if (usedServerIds.size() > 1000) { // Only cleanup if map gets large
-            long now = System.currentTimeMillis();
-            usedServerIds.entrySet().removeIf(entry ->
-                now - entry.getValue() > SERVER_ID_EXPIRY_MS);
+    private void cleanupExpiredCache() {
+        if (authCache.size() > 500) {
+            authCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
         }
     }
 
