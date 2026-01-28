@@ -31,8 +31,9 @@ public class MojangAuthService {
 
     // Cache successful verifications - allows same serverId to be reused within window
     // This is necessary because the client caches auth and sends multiple requests with the same serverId
+    // Longer cache = fewer Mojang API calls, and it's safe because username must match
     private final Map<String, CachedAuth> authCache = new ConcurrentHashMap<>();
-    private static final long CACHE_EXPIRY_MS = 20000; // 20 seconds (slightly longer than client's 15s cache)
+    private static final long CACHE_EXPIRY_MS = 300000; // 5 minutes
 
     /**
      * Cached authentication result
