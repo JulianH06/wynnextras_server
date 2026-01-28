@@ -14,13 +14,16 @@ public interface PersonalAspectRepository extends JpaRepository<PersonalAspect, 
     void deleteByPlayerUuid(String playerUuid);
 
     /**
-     * Get leaderboard of players with most max aspects (amount = 3)
+     * Get leaderboard of players with most max aspects
+     * Max amounts: Mythic=15, Fabled=75, Legendary=150
      * Returns list of [playerUuid, playerName, maxAspectCount]
      */
     @Query("""
         SELECT p.playerUuid, p.playerName, COUNT(*) as maxCount
         FROM PersonalAspect p
-        WHERE p.amount = 3
+        WHERE (p.rarity = 'Mythic' AND p.amount = 15)
+           OR (p.rarity = 'Fabled' AND p.amount = 75)
+           OR (p.rarity = 'Legendary' AND p.amount = 150)
         GROUP BY p.playerUuid, p.playerName
         ORDER BY maxCount DESC
         LIMIT :limit
