@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.julianh06.wynnextras_server.dto.GambitSubmissionDto;
 import com.julianh06.wynnextras_server.entity.GambitApproved;
 import com.julianh06.wynnextras_server.entity.GambitSubmission;
-import com.julianh06.wynnextras_server.entity.RaidLootPoolApproved;
 import com.julianh06.wynnextras_server.repository.GambitApprovedRepository;
 import com.julianh06.wynnextras_server.repository.GambitSubmissionRepository;
+import com.julianh06.wynnextras_server.repository.VerifiedUserRepository;
 import com.julianh06.wynnextras_server.util.TimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,11 +15,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class GambitService {
+
     private static final Logger logger = LoggerFactory.getLogger(GambitService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -29,35 +31,67 @@ public class GambitService {
     @Autowired
     private GambitApprovedRepository approvedRepo;
 
+    @Autowired
+    private VerifiedUserRepository verifiedUserRepo;
+
     /**
-     * Submit gambits for the day
+     * Submit gambits for today
      * Returns the approved gambits if submission triggers approval, null otherwise
      */
     @Transactional
-    public GambitSubmissionDto submitGambits(List<GambitSubmissionDto.GambitDto> gambits, String username) {
+    public GambitSubmissionDto submitGambits(
+            List<GambitSubmissionDto.GambitDto> gambits,
+            String username
+    ) {
         String dayId = TimeUtils.getDayIdentifier();
 
-        // Check if already approved and locked for today
-        Optional<GambitApproved> existing = approvedRepo.findByDayIdentifier(dayId);
-        if (existing.isPresent() && existing.get().isLocked()) {
+        // Check if already approved and locked
+        Optional<GambitApproved> existingApproved = approvedRepo.findByDayIdentifier(dayId);
+        if (existingApproved.isPresent() && existingApproved.get().isLocked()) {
             logger.info("Gambits for day {} are locked, ignoring submission from {}", dayId, username);
-            return deserializeGambits(existing.get().getGambitsJson());
+            return deserializeGambits(existingApproved.get().getGambitsJson());
         }
 
-        // Sort gambits by name for comparison
+        // Sort gambits for deterministic comparison
         List<GambitSubmissionDto.GambitDto> sortedGambits = gambits.stream()
-            .sorted(Comparator.comparing(GambitSubmissionDto.GambitDto::getName))
-            .collect(Collectors.toList());
+                .sorted(Comparator.comparing(GambitSubmissionDto.GambitDto::getName))
+                .collect(Collectors.toList());
 
         String gambitsJson = serializeGambits(sortedGambits);
 
-        // Save submission
-        GambitSubmission submission = new GambitSubmission(gambitsJson, username, dayId);
-        submissionRepo.save(submission);
-        logger.info("Saved gambit submission for day {} from {}", dayId, username);
+        // Same-user check (1 submission per user per day)
+        List<GambitSubmission> userExistingSubmissions =
+                submissionRepo.findByDayIdentifierAndSubmittedByOrderBySubmittedAtDesc(dayId, username);
 
-        // Check if should approve
-        return checkAndApprove(dayId, gambitsJson);
+        if (!userExistingSubmissions.isEmpty()) {
+            GambitSubmission mostRecent = userExistingSubmissions.get(0);
+
+            // Cleanup legacy duplicates
+            if (userExistingSubmissions.size() > 1) {
+                for (int i = 1; i < userExistingSubmissions.size(); i++) {
+                    submissionRepo.delete(userExistingSubmissions.get(i));
+                }
+                logger.info(
+                        "Cleaned up {} duplicate gambit submissions for day {} from {}",
+                        userExistingSubmissions.size() - 1,
+                        dayId,
+                        username
+                );
+            }
+
+            mostRecent.setGambitsJson(gambitsJson);
+            mostRecent.setSubmittedAt(Instant.now());
+            submissionRepo.save(mostRecent);
+
+            logger.info("Updated gambit submission for day {} from {}", dayId, username);
+        } else {
+            GambitSubmission submission = new GambitSubmission(gambitsJson, username, dayId);
+            submissionRepo.save(submission);
+
+            logger.info("Saved new gambit submission for day {} from {}", dayId, username);
+        }
+
+        return checkAndApprove(dayId, gambitsJson, username);
     }
 
     /**
@@ -65,67 +99,104 @@ public class GambitService {
      */
     public GambitSubmissionDto getApprovedGambits() {
         String dayId = TimeUtils.getDayIdentifier();
-        Optional<GambitApproved> approved = approvedRepo.findByDayIdentifier(dayId);
-
-        if (approved.isPresent()) {
-            return deserializeGambits(approved.get().getGambitsJson());
-        }
-
-        return null;
+        return approvedRepo.findByDayIdentifier(dayId)
+                .map(a -> deserializeGambits(a.getGambitsJson()))
+                .orElse(null);
     }
 
     /**
-     * Check if this submission should trigger approval
-     * Returns the approved gambits if approved, null otherwise
+     * Verified user check
+     */
+    public boolean isVerifiedUser(String username) {
+        return verifiedUserRepo.existsByUsername(username.toLowerCase());
+    }
+
+    /**
+     * Approval logic (mirrors LootPoolService)
      */
     @Transactional
-    protected GambitSubmissionDto checkAndApprove(String dayId, String gambitsJson) {
-        // Get all submissions for today with matching JSON
-        List<GambitSubmission> allSubmissions = submissionRepo.findByDayIdentifier(dayId);
+    protected GambitSubmissionDto checkAndApprove(
+            String dayId,
+            String gambitsJson,
+            String submittingUsername
+    ) {
+
+        // Verified user → instant approval
+        if (isVerifiedUser(submittingUsername)) {
+            logger.info(
+                    "Verified user {} submitted gambits for day {}, auto-approving",
+                    submittingUsername,
+                    dayId
+            );
+
+            GambitApproved approved = approvedRepo
+                    .findByDayIdentifier(dayId)
+                    .orElse(new GambitApproved(gambitsJson, dayId, false));
+
+            approved.setGambitsJson(gambitsJson);
+            approvedRepo.save(approved);
+
+            return deserializeGambits(gambitsJson);
+        }
+
+        // Get matching submissions
+        List<GambitSubmission> allSubmissions =
+                submissionRepo.findByDayIdentifier(dayId);
+
         List<GambitSubmission> matchingSubmissions = allSubmissions.stream()
-            .filter(s -> s.getGambitsJson().equals(gambitsJson))
-            .collect(Collectors.toList());
+                .filter(s -> s.getGambitsJson().equals(gambitsJson))
+                .collect(Collectors.toList());
 
-        int matchCount = matchingSubmissions.size();
-        logger.info("Found {} matching gambit submissions for day {}", matchCount, dayId);
+        long uniqueUserCount = matchingSubmissions.stream()
+                .map(GambitSubmission::getSubmittedBy)
+                .distinct()
+                .count();
 
-        // Check for lock (10+ matching submissions)
-        if (matchCount >= 10) {
-            logger.info("Locking gambits for day {} with {} submissions", dayId, matchCount);
+        logger.info(
+                "Found {} unique users with matching gambits for day {}",
+                uniqueUserCount,
+                dayId
+        );
 
-            Optional<GambitApproved> existing = approvedRepo.findByDayIdentifier(dayId);
-            if (existing.isPresent()) {
-                GambitApproved approved = existing.get();
-                approved.setGambitsJson(gambitsJson);
-                approved.setLocked(true);
-                approvedRepo.save(approved);
-            } else {
-                GambitApproved approved = new GambitApproved(gambitsJson, dayId, true);
-                approvedRepo.save(approved);
-            }
+        // Lock at 10+
+        if (uniqueUserCount >= 10) {
+            logger.info("Locking gambits for day {} with {} unique users", dayId, uniqueUserCount);
+
+            GambitApproved approved = approvedRepo
+                    .findByDayIdentifier(dayId)
+                    .orElse(new GambitApproved(gambitsJson, dayId, true));
+
+            approved.setGambitsJson(gambitsJson);
+            approved.setLocked(true);
+            approvedRepo.save(approved);
+
             return deserializeGambits(gambitsJson);
         }
 
-        // Require 3+ matching submissions for approval and lock
-        if (matchCount >= 3) {
-            logger.info("Approving gambits for day {} with {} submissions", dayId, matchCount);
+        // Approve at 3+
+        if (uniqueUserCount >= 3) {
+            logger.info("Approving gambits for day {} with {} unique users", dayId, uniqueUserCount);
 
-            Optional<GambitApproved> existing = approvedRepo.findByDayIdentifier(dayId);
-            if (existing.isPresent()) {
-                GambitApproved approved = existing.get();
-                approved.setGambitsJson(gambitsJson);
-                approved.setLocked(false);
-                approvedRepo.save(approved);
-            } else {
-                GambitApproved approved = new GambitApproved(gambitsJson, dayId, false);
-                approvedRepo.save(approved);
-            }
+            GambitApproved approved = approvedRepo
+                    .findByDayIdentifier(dayId)
+                    .orElse(new GambitApproved(gambitsJson, dayId, false));
+
+            approved.setGambitsJson(gambitsJson);
+            approved.setLocked(false);
+            approvedRepo.save(approved);
+
             return deserializeGambits(gambitsJson);
         }
 
-        logger.info("Not enough matching submissions yet ({}/3) for day {}", matchCount, dayId);
+        logger.info(
+                "Not enough unique users yet ({}/3) for day {}",
+                uniqueUserCount,
+                dayId
+        );
         return null;
     }
+
+    /* ===================== JSON ===================== */
 
     private String serializeGambits(List<GambitSubmissionDto.GambitDto> gambits) {
         try {
@@ -138,8 +209,9 @@ public class GambitService {
     private GambitSubmissionDto deserializeGambits(String json) {
         try {
             List<GambitSubmissionDto.GambitDto> gambits = objectMapper.readValue(
-                json,
-                objectMapper.getTypeFactory().constructCollectionType(List.class, GambitSubmissionDto.GambitDto.class)
+                    json,
+                    objectMapper.getTypeFactory()
+                            .constructCollectionType(List.class, GambitSubmissionDto.GambitDto.class)
             );
             return new GambitSubmissionDto(gambits);
         } catch (JsonProcessingException e) {
