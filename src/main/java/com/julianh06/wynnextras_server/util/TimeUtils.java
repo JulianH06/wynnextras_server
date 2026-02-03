@@ -8,6 +8,7 @@ import java.time.temporal.TemporalAdjusters;
 public class TimeUtils {
     private static final ZoneId CET = ZoneId.of("CET");
     private static final int RESET_HOUR = 19;
+    private static final int LOOTRUN_RESET_HOUR = 20;
     private static final int RESET_MINUTE = 0;
 
     /**
@@ -35,6 +36,35 @@ public class TimeUtils {
             .withNano(0);
 
         // If we're before Friday 19:00 this week, go back another week
+        if (now.isBefore(lastReset)) {
+            lastReset = lastReset.minusWeeks(1);
+        }
+
+        // Use ISO week number from the Friday that started this period
+        int year = lastReset.getYear();
+        int weekNumber = lastReset.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear());
+
+        return String.format("%d-W%02d", year, weekNumber);
+    }
+
+    /**
+     * Get week identifier for lootrun loot pools (resets Friday 20:00 CET)
+     * Returns format: "YYYY-Wxx" (e.g., "2026-W04")
+     *
+     * The week is defined as: Friday 20:00 CET to next Friday 20:00 CET
+     */
+    public static String getLootrunWeekIdentifier() {
+        ZonedDateTime now = getCurrentCETTime();
+
+        // Find the most recent Friday 20:00 (or current if exactly at reset time)
+        ZonedDateTime lastReset = now
+            .with(TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY))
+            .withHour(LOOTRUN_RESET_HOUR)
+            .withMinute(RESET_MINUTE)
+            .withSecond(0)
+            .withNano(0);
+
+        // If we're before Friday 20:00 this week, go back another week
         if (now.isBefore(lastReset)) {
             lastReset = lastReset.minusWeeks(1);
         }
