@@ -81,7 +81,7 @@ public class WynnextrasServerApplication {
 					.append("<br>");
 		}
 
-		sb.append("<br>Total entries: ").append(users.size());
+		sb.append("<br>Total entries: ").append(allUsers.size());
 
 		return sb.toString();
 	}
