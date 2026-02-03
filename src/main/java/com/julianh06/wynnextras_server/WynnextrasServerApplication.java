@@ -57,7 +57,7 @@ public class WynnextrasServerApplication {
 
 		sb.append("<br>Total entries: ").append(users.size());
 
-		sb.append("\n \n \n");
+		sb.append("<br><br><br>");
 
 		List<WynnExtrasUser> allUsers = wynnExtrasUserRepository.findActiveUsersSince(Instant.ofEpochSecond(0));
 		allUsers.sort((u1, u2) -> {
