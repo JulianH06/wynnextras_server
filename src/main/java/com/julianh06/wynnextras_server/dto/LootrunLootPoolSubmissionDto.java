@@ -29,9 +29,11 @@ public class LootrunLootPoolSubmissionDto {
     }
 
     public static class ItemDto {
-        private String name;
-        private String rarity;
-        private String type; // normal, shiny, tome
+        public String name;
+        public String rarity; // Mythic, Fabled, Legendary, Rare, Set, Unique
+        public String type;   // normal, shiny, tome
+        public String tooltip; // Full tooltip text
+        public String shinyStat; // For shiny items: the stat they have (e.g., "Health", "Mana Regen")
 
         public ItemDto() {}
 
@@ -39,6 +41,16 @@ public class LootrunLootPoolSubmissionDto {
             this.name = name;
             this.rarity = rarity;
             this.type = type;
+            this.tooltip = "";
+            this.shinyStat = "";
+        }
+
+        public ItemDto(String name, String rarity, String type, String tooltip, String shinyStat) {
+            this.name = name;
+            this.rarity = rarity;
+            this.type = type;
+            this.tooltip = tooltip != null ? tooltip : "";
+            this.shinyStat = shinyStat != null ? shinyStat : "";
         }
 
         public String getName() {
