@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface LootrunLootPoolApprovedRepository extends JpaRepository<LootrunLootPoolApproved, Long> {
-    Optional<LootrunLootPoolApproved> findByLootrunTypeAndWeekIdentifier(String lootrunType, String weekIdentifier);
+    Optional<LootrunLootPoolApproved> findFirstByLootrunTypeAndWeekIdentifierOrderByApprovedAtDesc(String lootrunType, String weekIdentifier);
 }

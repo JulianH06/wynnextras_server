@@ -41,7 +41,7 @@ public class LootrunLootPoolService {
         String weekId = TimeUtils.getLootrunWeekIdentifier();
 
         // Check if already approved and locked for this week
-        Optional<LootrunLootPoolApproved> existing = approvedRepo.findByLootrunTypeAndWeekIdentifier(lootrunType, weekId);
+        Optional<LootrunLootPoolApproved> existing = approvedRepo.findFirstByLootrunTypeAndWeekIdentifierOrderByApprovedAtDesc(lootrunType, weekId);
         if (existing.isPresent() && existing.get().isLocked()) {
             logger.info("Loot pool for {} week {} is locked, ignoring submission from {}", lootrunType, weekId, username);
             return deserializeItems(existing.get().getItemsJson());
@@ -92,7 +92,7 @@ public class LootrunLootPoolService {
      */
     public LootrunLootPoolSubmissionDto getApprovedLootPool(String lootrunType) {
         String weekId = TimeUtils.getLootrunWeekIdentifier();
-        Optional<LootrunLootPoolApproved> approved = approvedRepo.findByLootrunTypeAndWeekIdentifier(lootrunType, weekId);
+        Optional<LootrunLootPoolApproved> approved = approvedRepo.findFirstByLootrunTypeAndWeekIdentifierOrderByApprovedAtDesc(lootrunType, weekId);
 
         if (approved.isPresent()) {
             return deserializeItems(approved.get().getItemsJson());
@@ -141,7 +141,7 @@ public class LootrunLootPoolService {
         if (uniqueUserCount >= 10) {
             logger.info("Locking loot pool for {} week {} with {} unique users", lootrunType, weekId, uniqueUserCount);
 
-            Optional<LootrunLootPoolApproved> existing = approvedRepo.findByLootrunTypeAndWeekIdentifier(lootrunType, weekId);
+            Optional<LootrunLootPoolApproved> existing = approvedRepo.findFirstByLootrunTypeAndWeekIdentifierOrderByApprovedAtDesc(lootrunType, weekId);
             if (existing.isPresent()) {
                 LootrunLootPoolApproved approved = existing.get();
                 approved.setLocked(true);
@@ -158,7 +158,7 @@ public class LootrunLootPoolService {
         if (uniqueUserCount >= 3) {
             logger.info("Approving loot pool for {} week {} with {} unique users", lootrunType, weekId, uniqueUserCount);
 
-            Optional<LootrunLootPoolApproved> existing = approvedRepo.findByLootrunTypeAndWeekIdentifier(lootrunType, weekId);
+            Optional<LootrunLootPoolApproved> existing = approvedRepo.findFirstByLootrunTypeAndWeekIdentifierOrderByApprovedAtDesc(lootrunType, weekId);
             if (existing.isPresent()) {
                 LootrunLootPoolApproved approved = existing.get();
                 approved.setItemsJson(itemsJson);
