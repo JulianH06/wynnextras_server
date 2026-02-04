@@ -2,6 +2,7 @@ package com.julianh06.wynnextras_server.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.julianh06.wynnextras_server.dto.LootrunLootPoolSubmissionDto;
 import com.julianh06.wynnextras_server.entity.LootrunLootPoolApproved;
 import com.julianh06.wynnextras_server.entity.LootrunLootPoolSubmission;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
 @Service
 public class LootrunLootPoolService {
     private static final Logger logger = LoggerFactory.getLogger(LootrunLootPoolService.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
     @Autowired
     private LootrunLootPoolSubmissionRepository submissionRepo;
@@ -48,8 +49,13 @@ public class LootrunLootPoolService {
         }
 
         // Sort items by name for comparison
+        Comparator<String> stringComparator = Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER);
         List<LootrunLootPoolSubmissionDto.ItemDto> sortedItems = items.stream()
-            .sorted(Comparator.comparing(LootrunLootPoolSubmissionDto.ItemDto::getName))
+            .sorted(Comparator.comparing(LootrunLootPoolSubmissionDto.ItemDto::getName, stringComparator)
+                .thenComparing(LootrunLootPoolSubmissionDto.ItemDto::getRarity, stringComparator)
+                .thenComparing(LootrunLootPoolSubmissionDto.ItemDto::getType, stringComparator)
+                .thenComparing(LootrunLootPoolSubmissionDto.ItemDto::getShinyStat, stringComparator)
+                .thenComparing(LootrunLootPoolSubmissionDto.ItemDto::getTooltip, stringComparator))
             .collect(Collectors.toList());
 
         String itemsJson = serializeItems(sortedItems);

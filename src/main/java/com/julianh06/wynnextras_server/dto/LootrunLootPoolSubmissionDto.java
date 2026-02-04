@@ -1,6 +1,12 @@
 package com.julianh06.wynnextras_server.dto;
 
+import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class LootrunLootPoolSubmissionDto {
     private String lootrunType;
@@ -29,11 +35,11 @@ public class LootrunLootPoolSubmissionDto {
     }
 
     public static class ItemDto {
-        public String name;
-        public String rarity; // Mythic, Fabled, Legendary, Rare, Set, Unique
-        public String type;   // normal, shiny, tome
-        public String tooltip; // Full tooltip text
-        public String shinyStat; // For shiny items: the stat they have (e.g., "Health", "Mana Regen")
+        private String name;
+        private String rarity; // Mythic, Fabled, Legendary, Rare, Set, Unique
+        private String type;   // normal, shiny, tome
+        private String tooltip; // Full tooltip text
+        private String shinyStat; // For shiny items: the stat they have (e.g., "Health", "Mana Regen")
 
         public ItemDto() {}
 
@@ -75,6 +81,22 @@ public class LootrunLootPoolSubmissionDto {
 
         public void setType(String type) {
             this.type = type;
+        }
+
+        public String getTooltip() {
+            return tooltip;
+        }
+
+        public void setTooltip(String tooltip) {
+            this.tooltip = tooltip != null ? tooltip : "";
+        }
+
+        public String getShinyStat() {
+            return shinyStat;
+        }
+
+        public void setShinyStat(String shinyStat) {
+            this.shinyStat = shinyStat != null ? shinyStat : "";
         }
     }
 }
