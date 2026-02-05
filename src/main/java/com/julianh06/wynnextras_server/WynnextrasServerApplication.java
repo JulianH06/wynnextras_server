@@ -1,6 +1,8 @@
 package com.julianh06.wynnextras_server;
 
+import com.julianh06.wynnextras_server.entity.LootrunLootPoolApproved;
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
+import com.julianh06.wynnextras_server.repository.LootrunLootPoolApprovedRepository;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
@@ -19,6 +21,9 @@ public class WynnextrasServerApplication {
 
 	@Autowired
 	private WynnExtrasUserRepository wynnExtrasUserRepository;
+
+	@Autowired
+	private LootrunLootPoolApprovedRepository lootrunLootPoolApprovedRepository;
 
 	public static void main(String[] args) {
 		SpringApplication.run(WynnextrasServerApplication.class, args);
@@ -82,6 +87,11 @@ public class WynnextrasServerApplication {
 		}
 
 		sb.append("<br>Total entries: ").append(allUsers.size());
+
+		sb.append("<br>");
+		for(LootrunLootPoolApproved lootrunLootPoolApproved : lootrunLootPoolApprovedRepository.findAll()){
+			sb.append(lootrunLootPoolApproved.getItemsJson()).append("<br>");
+		}
 
 		return sb.toString();
 	}
