@@ -105,7 +105,6 @@ public class MojangAuthService {
                 // Cache the successful verification
                 authCache.put(serverId, new CachedAuth(verifiedUuid, verifiedUsername));
 
-                logger.info("Successfully authenticated player {} (UUID: {})", verifiedUsername, verifiedUuid);
                 return AuthResult.success(verifiedUuid, verifiedUsername);
             } else if (response.statusCode() == 204) {
                 // No Content - authentication failed
