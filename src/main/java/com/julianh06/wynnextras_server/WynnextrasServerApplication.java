@@ -36,7 +36,7 @@ public class WynnextrasServerApplication {
 		StringBuilder sb = new StringBuilder();
 
 		List<WynnExtrasUser> allUsers = wynnExtrasUserRepository.findActiveUsersSince(Instant.ofEpochSecond(0));
-		sb.append("Total entries: <br>").append(allUsers.size());
+		sb.append("Total entries:").append(allUsers.size()).append("<br><br>");
 
 		List<WynnExtrasUser> allUsersCopy = new ArrayList<>(allUsers);
 		allUsersCopy.sort(Comparator.comparing(WynnExtrasUser::getCreatedAt));
