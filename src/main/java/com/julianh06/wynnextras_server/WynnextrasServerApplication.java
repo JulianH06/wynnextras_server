@@ -63,7 +63,14 @@ public class WynnextrasServerApplication {
 					.format(new java.util.Date(u.getLastSeen().toEpochMilli()))
 					: "N/A";
 
+			String created = u.getCreatedAt() != null
+					? new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss")
+					.format(new java.util.Date(u.getCreatedAt().toEpochMilli()))
+					: "N/A";
+
 			sb.append(u.getUsername())
+					.append(" | ")
+					.append(created)
 					.append(" | ")
 					.append(date)
 					.append(" | ")
