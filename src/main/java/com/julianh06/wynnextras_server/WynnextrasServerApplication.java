@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @SpringBootApplication
@@ -36,21 +38,11 @@ public class WynnextrasServerApplication {
 		List<WynnExtrasUser> allUsers = wynnExtrasUserRepository.findActiveUsersSince(Instant.ofEpochSecond(0));
 		sb.append("Total entries: <br>").append(allUsers.size());
 
-		for (WynnExtrasUser u : allUsers) {
-			String date = u.getLastSeen() != null
-					? new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss")
-					.format(new java.util.Date(u.getLastSeen().toEpochMilli()))
-					: "N/A";
+		List<WynnExtrasUser> allUsersCopy = new ArrayList<>(allUsers);
+		allUsersCopy.sort(Comparator.comparing(WynnExtrasUser::getCreatedAt));
+		printUsers(sb, allUsersCopy);
 
-			sb.append(u.getUsername())
-					.append(" | ")
-					.append(date)
-					.append(" | ")
-					.append(u.getModVersion())
-					.append("<br>");
-		}
-
-		sb.append("<br> Time sorted: <br>");
+		sb.append("<br> Time sorted: <br> <br>");
 
 		allUsers.sort((u1, u2) -> {
 			if (u1.getLastSeen() == null && u2.getLastSeen() == null) return 0;
@@ -59,7 +51,13 @@ public class WynnextrasServerApplication {
 			return u1.getLastSeen().compareTo(u2.getLastSeen());
 		});
 
-		for (WynnExtrasUser u : allUsers) {
+		printUsers(sb, allUsers);
+
+		return sb.toString();
+	}
+
+	private void printUsers(StringBuilder sb, List<WynnExtrasUser> allUsersCopy) {
+		for (WynnExtrasUser u : allUsersCopy) {
 			String date = u.getLastSeen() != null
 					? new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss")
 					.format(new java.util.Date(u.getLastSeen().toEpochMilli()))
@@ -72,7 +70,5 @@ public class WynnextrasServerApplication {
 					.append(u.getModVersion())
 					.append("<br>");
 		}
-
-		return sb.toString();
 	}
 }
