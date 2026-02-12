@@ -33,21 +33,16 @@ public class WynnextrasServerApplication {
 	public String viewDatabase() {
 		StringBuilder sb = new StringBuilder();
 
-		List<User> users = userRepository.findAll();
-		users.sort((u1, u2) -> {
-			if (u1.getUpdatedAt() == null && u2.getUpdatedAt() == null) return 0;
-			if (u1.getUpdatedAt() == null) return -1;
-			if (u2.getUpdatedAt() == null) return 1;
-			return u1.getUpdatedAt().compareTo(u2.getUpdatedAt());
-		});
+		List<WynnExtrasUser> allUsers = wynnExtrasUserRepository.findActiveUsersSince(Instant.ofEpochSecond(0));
+		sb.append("Total entries: <br>").append(allUsers.size());
 
-		for (User u : users) {
-			String date = u.getUpdatedAt() != null
+		for (WynnExtrasUser u : allUsers) {
+			String date = u.getLastSeen() != null
 					? new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss")
-					.format(new java.util.Date(u.getUpdatedAt()))
+					.format(new java.util.Date(u.getLastSeen().toEpochMilli()))
 					: "N/A";
 
-			sb.append(u.getPlayerName())
+			sb.append(u.getUsername())
 					.append(" | ")
 					.append(date)
 					.append(" | ")
@@ -55,11 +50,8 @@ public class WynnextrasServerApplication {
 					.append("<br>");
 		}
 
-		sb.append("<br>Total entries: ").append(users.size());
+		sb.append("<br> Time sorted: <br>");
 
-		sb.append("<br><br><br>");
-
-		List<WynnExtrasUser> allUsers = wynnExtrasUserRepository.findActiveUsersSince(Instant.ofEpochSecond(0));
 		allUsers.sort((u1, u2) -> {
 			if (u1.getLastSeen() == null && u2.getLastSeen() == null) return 0;
 			if (u1.getLastSeen() == null) return -1;
@@ -80,8 +72,6 @@ public class WynnextrasServerApplication {
 					.append(u.getModVersion())
 					.append("<br>");
 		}
-
-		sb.append("<br>Total entries: ").append(allUsers.size());
 
 		return sb.toString();
 	}
