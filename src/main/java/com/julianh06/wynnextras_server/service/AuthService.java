@@ -12,7 +12,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -21,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Uses the standard Minecraft authentication flow without exposing session IDs
  */
 @Service
-public class MojangAuthService {
-    private static final Logger logger = LoggerFactory.getLogger(MojangAuthService.class);
+public class AuthService {
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
     private static final String MOJANG_SESSION_SERVER = "https://sessionserver.mojang.com/session/minecraft/hasJoined";
     private static final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -33,7 +36,26 @@ public class MojangAuthService {
     // This is necessary because the client caches auth and sends multiple requests with the same serverId
     // Longer cache = fewer Mojang API calls, and it's safe because username must match
     private final Map<String, CachedAuth> authCache = new ConcurrentHashMap<>();
-    private static final long CACHE_EXPIRY_MS = 300000; // 5 minutes
+    private static final long CACHE_EXPIRY_MS = 600000; // 10 minutes
+
+    private static final Map<String, SessionData> sessions = new ConcurrentHashMap<>();
+    public static final long SESSION_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+    public static class SessionData {
+        public final String uuid;
+        public final String username;
+        long expiresAt;
+
+        SessionData(String uuid, String username, long expiresAt) {
+            this.uuid = uuid;
+            this.username = username;
+            this.expiresAt = expiresAt;
+        }
+
+        boolean isExpired() {
+            return System.currentTimeMillis() > expiresAt;
+        }
+    }
 
     /**
      * Cached authentication result
@@ -158,4 +180,48 @@ public class MojangAuthService {
         public String getUsername() { return username; }
         public String getError() { return error; }
     }
+
+    public String createSessionAfterMojangVerify(String username, String serverId) {
+        AuthResult result = verifyPlayer(username, serverId);
+
+        if (!result.isSuccess()) {
+            return null;
+        }
+
+        String token = generateSessionToken();
+        sessions.put(token, new SessionData(result.getUuid(), result.getUsername(), System.currentTimeMillis() + SESSION_DURATION_MS));
+        System.out.println("put new token, sessions: " + sessions);
+
+        return token;
+    }
+
+    private String generateSessionToken() {
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        System.out.println("generated: " + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes));
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    public static SessionData validateSession(String token) {
+        if (token == null) {
+            System.out.println("token null");
+            return null;
+        }
+
+        SessionData session = sessions.get(token);
+
+        if (session == null) {
+            System.out.println("session null " + sessions.size() + " " + sessions + " " + token);
+            return null;
+        }
+
+        if (session.isExpired()) {
+            System.out.println("session expired " + session.expiresAt + " aaaaaa");
+            sessions.remove(token);
+            return null;
+        }
+
+        return session;
+    }
+
 }

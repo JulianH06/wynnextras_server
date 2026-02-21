@@ -2,16 +2,13 @@ package com.julianh06.wynnextras_server.controller;
 
 import com.julianh06.wynnextras_server.dto.LootPoolSubmissionDto;
 import com.julianh06.wynnextras_server.service.LootPoolService;
-import com.julianh06.wynnextras_server.service.MojangAuthService;
-import com.julianh06.wynnextras_server.service.WynnAPIKeyService;
+import com.julianh06.wynnextras_server.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/raid")
@@ -22,10 +19,7 @@ public class LootPoolController {
     private LootPoolService lootPoolService;
 
     @Autowired
-    private MojangAuthService mojangAuth;
-
-    @Autowired
-    private WynnAPIKeyService wynnApiKeyService;
+    private AuthService mojangAuth;
 
     /**
      * Submit a loot pool for a raid
@@ -40,9 +34,22 @@ public class LootPoolController {
     @PostMapping("/loot-pool")
     public ResponseEntity<?> submitLootPool(
             @RequestBody LootPoolSubmissionDto submission,
-            @RequestHeader(value = "Username", required = false) String username,
-            @RequestHeader(value = "Server-ID", required = false) String serverId,
-            @RequestHeader(value = "Player-UUID", required = false) String playerUuid) {
+            @RequestHeader(value = "Authorization", required = false) String token) {
+
+        // Validate session token
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("status","error","message","Missing session token"));
+        }
+
+        AuthService.SessionData session = AuthService.validateSession(token);
+
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("status","error","message","Session expired or invalid"));
+        }
+
+        String verifiedUsername = session.username;
 
         // Validate raid type from body
         String raidType = submission.getRaidType();
@@ -53,28 +60,6 @@ public class LootPoolController {
         if (!isValidRaidType(raidType)) {
             logger.warn("Invalid raid type: {}", raidType);
             return ResponseEntity.badRequest().body("Invalid raid type");
-        }
-
-        String verifiedUsername;
-
-        // Determine authentication method
-        boolean hasMojangAuth = username != null && !username.trim().isEmpty()
-                             && serverId != null && !serverId.trim().isEmpty();
-
-        if (hasMojangAuth) {
-            // Mojang Sessionserver authentication
-            MojangAuthService.AuthResult authResult = mojangAuth.verifyPlayer(username, serverId);
-            if (!authResult.isSuccess()) {
-                logger.warn("Mojang authentication failed for user {}: {}", username, authResult.getError());
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("status", "error", "message", authResult.getError()));
-            }
-            verifiedUsername = authResult.getUsername();
-
-        } else {
-            return ResponseEntity.badRequest()
-                .body(Map.of("status", "error",
-                           "message", "Authentication required: provide either (Username + Server-ID) or (Wynncraft-Api-Key + Player-UUID)"));
         }
 
         // Submit loot pool

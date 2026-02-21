@@ -3,8 +3,7 @@ package com.julianh06.wynnextras_server.controller;
 import com.julianh06.wynnextras_server.dto.PersonalAspectDto;
 import com.julianh06.wynnextras_server.entity.PersonalAspect;
 import com.julianh06.wynnextras_server.repository.PersonalAspectRepository;
-import com.julianh06.wynnextras_server.service.MojangAuthService;
-import com.julianh06.wynnextras_server.service.WynnAPIKeyService;
+import com.julianh06.wynnextras_server.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,10 +30,7 @@ public class PersonalAspectController {
     private PersonalAspectRepository personalAspectRepo;
 
     @Autowired
-    private MojangAuthService mojangAuth;
-
-    @Autowired
-    private WynnAPIKeyService wynnApiKeyService;
+    private AuthService mojangAuth;
 
     /**
      * Upload personal aspects
@@ -53,33 +49,22 @@ public class PersonalAspectController {
     @Transactional
     public ResponseEntity<?> uploadAspects(
             @RequestBody PersonalAspectDto.UploadRequest request,
-            @RequestHeader(value = "Username", required = false) String username,
-            @RequestHeader(value = "Server-ID", required = false) String serverId) {
+            @RequestHeader(value = "Authorization", required = false) String token) {
 
-        String verifiedUuid;
-        String verifiedUsername;
-
-        // Determine authentication method
-        boolean hasMojangAuth = username != null && !username.trim().isEmpty()
-                             && serverId != null && !serverId.trim().isEmpty();
-
-        if (hasMojangAuth) {
-            // New mod: Mojang Sessionserver authentication
-            logger.debug("Using Mojang authentication for user: {}", username);
-            MojangAuthService.AuthResult authResult = mojangAuth.verifyPlayer(username, serverId);
-            if (!authResult.isSuccess()) {
-                logger.warn("Mojang authentication failed for user {}: {}", username, authResult.getError());
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(createResponse("error", authResult.getError()));
-            }
-            verifiedUuid = authResult.getUuid();
-            verifiedUsername = authResult.getUsername();
-
-        } else {
-            // No valid authentication provided
-            return ResponseEntity.badRequest()
-                .body(createResponse("error", "Authentication required: provide either (Username + Server-ID) or Wynncraft-Api-Key"));
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createResponse("error","Missing session token"));
         }
+
+        AuthService.SessionData session = AuthService.validateSession(token);
+
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createResponse("error","Session expired or invalid"));
+        }
+
+        String verifiedUuid = session.uuid;
+        String verifiedUsername = session.username;
 
         // Validate request
         if (request.getAspects() == null || request.getAspects().isEmpty()) {
@@ -89,6 +74,7 @@ public class PersonalAspectController {
         try {
             // Save or update each aspect
             for (PersonalAspectDto.AspectData aspect : request.getAspects()) {
+                if(aspect.getAmount() <= 0) continue;
                 var existing = personalAspectRepo.findByPlayerUuidAndAspectName(verifiedUuid, aspect.getName());
 
                 if (existing.isPresent()) {

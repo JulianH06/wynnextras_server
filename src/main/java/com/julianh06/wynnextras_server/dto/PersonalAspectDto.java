@@ -28,7 +28,6 @@ public class PersonalAspectDto {
     }
 
     public static class UploadRequest {
-        private String playerName;
         private String modVersion;
         private List<AspectData> aspects;
 
@@ -37,9 +36,6 @@ public class PersonalAspectDto {
         private Long updatedAt;
 
         public UploadRequest() {}
-
-        public String getPlayerName() { return playerName; }
-        public void setPlayerName(String playerName) { this.playerName = playerName; }
 
         public String getModVersion() { return modVersion; }
         public void setModVersion(String modVersion) { this.modVersion = modVersion; }

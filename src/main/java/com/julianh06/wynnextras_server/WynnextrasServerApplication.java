@@ -42,16 +42,16 @@ public class WynnextrasServerApplication {
 		allUsersCopy.sort(Comparator.comparing(WynnExtrasUser::getCreatedAt));
 		printUsers(sb, allUsersCopy);
 
-		sb.append("<br> Time sorted: <br> <br>");
-
-		allUsers.sort((u1, u2) -> {
-			if (u1.getLastSeen() == null && u2.getLastSeen() == null) return 0;
-			if (u1.getLastSeen() == null) return -1;
-			if (u2.getLastSeen() == null) return 1;
-			return u1.getLastSeen().compareTo(u2.getLastSeen());
-		});
-
-		printUsers(sb, allUsers);
+//		sb.append("<br> Time sorted: <br> <br>");
+//
+//		allUsers.sort((u1, u2) -> {
+//			if (u1.getLastSeen() == null && u2.getLastSeen() == null) return 0;
+//			if (u1.getLastSeen() == null) return -1;
+//			if (u2.getLastSeen() == null) return 1;
+//			return u1.getLastSeen().compareTo(u2.getLastSeen());
+//		});
+//
+//		printUsers(sb, allUsers);
 
 		return sb.toString();
 	}

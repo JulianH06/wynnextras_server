@@ -2,7 +2,7 @@ package com.julianh06.wynnextras_server.controller;
 
 import com.julianh06.wynnextras_server.dto.LootrunLootPoolSubmissionDto;
 import com.julianh06.wynnextras_server.service.LootrunLootPoolService;
-import com.julianh06.wynnextras_server.service.MojangAuthService;
+import com.julianh06.wynnextras_server.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +21,7 @@ public class LootrunLootPoolController {
     private LootrunLootPoolService lootrunLootPoolService;
 
     @Autowired
-    private MojangAuthService mojangAuth;
+    private AuthService mojangAuth;
 
     /**
      * Submit a loot pool for a lootrun
@@ -33,8 +33,22 @@ public class LootrunLootPoolController {
     @PostMapping("/loot-pool")
     public ResponseEntity<?> submitLootPool(
             @RequestBody LootrunLootPoolSubmissionDto submission,
-            @RequestHeader(value = "Username", required = false) String username,
-            @RequestHeader(value = "Server-ID", required = false) String serverId) {
+            @RequestHeader(value = "Authorization", required = false) String token) {
+
+        // Validate session token
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("status","error","message","Missing session token"));
+        }
+
+        AuthService.SessionData session = AuthService.validateSession(token);
+
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("status","error","message","Session expired or invalid"));
+        }
+
+        String verifiedUsername = session.username;
 
         // Validate lootrun type from body
         String lootrunType = submission.getLootrunType();
@@ -46,25 +60,6 @@ public class LootrunLootPoolController {
             logger.warn("Invalid lootrun type: {}", lootrunType);
             return ResponseEntity.badRequest().body("Invalid lootrun type");
         }
-
-        // Determine authentication method
-        boolean hasMojangAuth = username != null && !username.trim().isEmpty()
-                             && serverId != null && !serverId.trim().isEmpty();
-
-        if (!hasMojangAuth) {
-            return ResponseEntity.badRequest()
-                .body(Map.of("status", "error",
-                           "message", "Authentication required: provide Username + Server-ID headers"));
-        }
-
-        // Mojang Sessionserver authentication
-        MojangAuthService.AuthResult authResult = mojangAuth.verifyPlayer(username, serverId);
-        if (!authResult.isSuccess()) {
-            logger.warn("Mojang authentication failed for user {}: {}", username, authResult.getError());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("status", "error", "message", authResult.getError()));
-        }
-        String verifiedUsername = authResult.getUsername();
 
         // Submit loot pool
         try {

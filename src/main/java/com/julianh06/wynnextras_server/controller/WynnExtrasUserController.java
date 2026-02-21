@@ -2,7 +2,7 @@ package com.julianh06.wynnextras_server.controller;
 
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
-import com.julianh06.wynnextras_server.service.MojangAuthService;
+import com.julianh06.wynnextras_server.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,9 +32,6 @@ public class WynnExtrasUserController {
     @Autowired
     private WynnExtrasUserRepository userRepository;
 
-    @Autowired
-    private MojangAuthService mojangAuth;
-
     /**
      * Client heartbeat - registers or updates user activity
      * POST /wynnextras-users/heartbeat
@@ -47,36 +44,23 @@ public class WynnExtrasUserController {
     @PostMapping("/heartbeat")
     public ResponseEntity<?> heartbeat(
             @RequestBody HeartbeatRequest request,
-            @RequestHeader(value = "Username", required = false) String username,
-            @RequestHeader(value = "Server-ID", required = false) String serverId) {
+            @RequestHeader(value = "Authorization", required = false) String token) {
 
-        // Validate authentication headers
-        boolean hasMojangAuth = username != null && !username.trim().isEmpty()
-                             && serverId != null && !serverId.trim().isEmpty();
-
-        if (!hasMojangAuth) {
-            return ResponseEntity.badRequest()
-                .body(Map.of("status", "error",
-                           "message", "Authentication required: provide Username + Server-ID headers"));
-        }
-
-        // Validate mod version
-        if (request.getModVersion() == null || request.getModVersion().trim().isEmpty()) {
-            return ResponseEntity.badRequest()
-                .body(Map.of("status", "error",
-                           "message", "modVersion is required in request body"));
-        }
-
-        // Authenticate via Mojang
-        MojangAuthService.AuthResult authResult = mojangAuth.verifyPlayer(username, serverId);
-        if (!authResult.isSuccess()) {
-            logger.warn("Mojang authentication failed for user {}: {}", username, authResult.getError());
+        if (token == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("status", "error", "message", authResult.getError()));
+                    .body(Map.of("status","error","message","Missing session token"));
         }
 
-        String verifiedUuid = authResult.getUuid();
-        String verifiedUsername = authResult.getUsername();
+        AuthService.SessionData session = AuthService.validateSession(token);
+
+        if (session == null) {
+            System.out.println("Session expired");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("status","error","message","Session expired or invalid"));
+        }
+
+        String verifiedUuid = session.uuid;
+        String verifiedUsername = session.username;
         String modVersion = request.getModVersion().trim();
 
         try {
