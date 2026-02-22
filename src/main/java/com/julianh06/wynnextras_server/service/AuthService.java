@@ -211,7 +211,6 @@ public class AuthService {
         SessionData session = sessions.get(token);
 
         if (session == null) {
-            System.out.println("session null " + sessions.size() + " " + sessions + " " + token);
             return null;
         }
 
