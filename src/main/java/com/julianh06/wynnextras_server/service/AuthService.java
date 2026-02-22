@@ -127,6 +127,8 @@ public class AuthService {
                 // Cache the successful verification
                 authCache.put(serverId, new CachedAuth(verifiedUuid, verifiedUsername));
 
+                logger.info("Verified " + username + " with Mojang");
+
                 return AuthResult.success(verifiedUuid, verifiedUsername);
             } else if (response.statusCode() == 204) {
                 // No Content - authentication failed
@@ -137,7 +139,7 @@ public class AuthService {
                 return AuthResult.error("Authentication service error");
             }
         } catch (Exception e) {
-            logger.error("Error verifying player with Mojang", e);
+            logger.error("Error verifying " + username + " with Mojang", e);
             return AuthResult.error("Authentication failed - " + e.getMessage());
         }
     }
