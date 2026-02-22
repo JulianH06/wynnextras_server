@@ -52,7 +52,6 @@ public class PersonalAspectController {
             @RequestHeader(value = "Authorization", required = false) String token) {
 
         if (token == null) {
-            logger.info("Couldnt upload aspects for " + request.getUuid() + " token == null");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(createResponse("error","Missing session token"));
         }
@@ -60,7 +59,6 @@ public class PersonalAspectController {
         AuthService.SessionData session = AuthService.validateSession(token);
 
         if (session == null) {
-            logger.info("Couldnt upload aspects for " + request.getUuid() + " session == null");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(createResponse("error","Session expired or invalid"));
         }
@@ -70,7 +68,6 @@ public class PersonalAspectController {
 
         // Validate request
         if (request.getAspects() == null || request.getAspects().isEmpty()) {
-            logger.info("Couldnt upload aspects for " + request.getUuid() + " no aspects provided");
             return ResponseEntity.badRequest().body("No aspects provided");
         }
 
