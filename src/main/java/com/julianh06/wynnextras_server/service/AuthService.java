@@ -84,6 +84,7 @@ public class AuthService {
      * @return AuthResult with verified UUID and username, or error
      */
     public AuthResult verifyPlayer(String username, String serverId) {
+        System.out.println("trying to verify " + username);
         // Check if we have a cached verification for this serverId
         CachedAuth cached = authCache.get(serverId);
         if (cached != null && !cached.isExpired()) {
@@ -185,12 +186,12 @@ public class AuthService {
         AuthResult result = verifyPlayer(username, serverId);
 
         if (!result.isSuccess()) {
+            System.out.println("mojang verification failed for " + username);
             return null;
         }
 
         String token = generateSessionToken();
         sessions.put(token, new SessionData(result.getUuid(), result.getUsername(), System.currentTimeMillis() + SESSION_DURATION_MS));
-        System.out.println("put new token, sessions: " + sessions);
 
         return token;
     }
