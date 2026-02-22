@@ -127,7 +127,7 @@ public class AuthService {
                 // Cache the successful verification
                 authCache.put(serverId, new CachedAuth(verifiedUuid, verifiedUsername));
 
-                logger.info("Verified " + username + " with Mojang");
+                logger.info("Verified {} with Mojang", username);
 
                 return AuthResult.success(verifiedUuid, verifiedUsername);
             } else if (response.statusCode() == 204) {
