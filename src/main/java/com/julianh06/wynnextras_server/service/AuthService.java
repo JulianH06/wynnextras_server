@@ -190,7 +190,6 @@ public class AuthService {
 
         String token = generateSessionToken();
         sessions.put(token, new SessionData(result.getUuid(), result.getUsername(), System.currentTimeMillis() + SESSION_DURATION_MS));
-        System.out.println("put new token, sessions: " + sessions);
 
         return token;
     }
