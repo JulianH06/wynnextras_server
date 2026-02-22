@@ -21,8 +21,6 @@ public class AuthController {
 
     @PostMapping
     public ResponseEntity<?> authenticate(@RequestBody AuthRequest request) {
-        System.out.println("Creating token for " + request.username);
-
         String token = authService.createSessionAfterMojangVerify(
             request.getUsername(),
             request.getServerId()
