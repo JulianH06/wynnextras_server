@@ -198,7 +198,6 @@ public class AuthService {
     private String generateSessionToken() {
         byte[] bytes = new byte[32];
         new SecureRandom().nextBytes(bytes);
-        System.out.println("generated: " + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
