@@ -14,7 +14,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,6 +27,7 @@ public class AuthService {
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
     private static final String MOJANG_SESSION_SERVER = "https://sessionserver.mojang.com/session/minecraft/hasJoined";
     private static final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(10))
             .build();
     private static final ObjectMapper objectMapper = new ObjectMapper();
@@ -139,8 +139,8 @@ public class AuthService {
                 return AuthResult.error("Authentication service error");
             }
         } catch (Exception e) {
-            logger.error("Error verifying " + username + " with Mojang", e);
-            return AuthResult.error("Authentication failed - " + e.getMessage());
+            logger.error("Error verifying {} with Mojang", username, e);
+            return AuthResult.error("Authentication service unavailable");
         }
     }
 
