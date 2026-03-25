@@ -6,9 +6,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api")
 public class ResetTimesController {
     private static final ResetConfig CONFIG = new ResetConfig(
-            new ResetTime("FRIDAY", 17, 0, "UTC"),  // raid aspect lootpool
-            new ResetTime("FRIDAY", 18, 0, "UTC"),  // lootrun lootpool
-            new ResetTime(null,     17, 0, "UTC")   // gambit (täglich, day=null)
+            new ResetTime("FRIDAY", 17, 0, "UTC"), // raid lootpool
+            new ResetTime("FRIDAY", 18, 0, "UTC"), // lootrun lootpool
+            new ResetTime(null, 17, 0, "UTC") // gambit (daily, day=null)
     );
 
     @GetMapping("/reset-times")
