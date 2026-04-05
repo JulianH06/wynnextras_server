@@ -2,7 +2,9 @@ package com.julianh06.wynnextras_server.repository;
 
 import com.julianh06.wynnextras_server.entity.PersonalAspect;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +14,10 @@ public interface PersonalAspectRepository extends JpaRepository<PersonalAspect, 
     List<PersonalAspect> findByPlayerUuid(String playerUuid);
     Optional<PersonalAspect> findByPlayerUuidAndAspectName(String playerUuid, String aspectName);
     void deleteByPlayerUuid(String playerUuid);
+
+    @Modifying
+    @Query("DELETE FROM PersonalAspect p WHERE p.aspectName = :name")
+    int deleteByAspectName(@Param("name") String name);
 
     /**
      * Get leaderboard of players with most max aspects

@@ -2,6 +2,8 @@ package com.julianh06.wynnextras_server.repository;
 
 import com.julianh06.wynnextras_server.entity.LootrunLootPoolSubmission;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -12,4 +14,8 @@ public interface LootrunLootPoolSubmissionRepository extends JpaRepository<Lootr
     List<LootrunLootPoolSubmission> findByWeekIdentifier(String weekIdentifier);
     List<LootrunLootPoolSubmission> findByLootrunTypeAndWeekIdentifierAndSubmittedByOrderBySubmittedAtDesc(
             String lootrunType, String weekIdentifier, String submittedBy);
+
+    @Modifying
+    @Query("DELETE FROM LootrunLootPoolSubmission l WHERE l.lootrunType = :lootrunType")
+    long deleteByLootrunType(String lootrunType);
 }
