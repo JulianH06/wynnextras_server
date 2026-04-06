@@ -5,6 +5,7 @@ import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -77,5 +78,758 @@ public class WynnextrasServerApplication {
 					.append(u.getModVersion())
 					.append("<br>");
 		}
+	}
+
+	@GetMapping("/admin/panel")
+	public ResponseEntity<String> adminPanel() {
+		String html = """
+				<!DOCTYPE html>
+				<html lang="de">
+				<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>WynnExtras Admin</title>
+				<style>
+				  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;400;600;700&display=swap');
+				
+				  :root {
+				    --bg: #0a0c0f;
+				    --surface: #111419;
+				    --border: #1e2530;
+				    --border-bright: #2a3545;
+				    --text: #c8d8e8;
+				    --muted: #4a6080;
+				    --accent: #00c8ff;
+				    --accent-dim: rgba(0,200,255,0.08);
+				    --danger: #ff4560;
+				    --danger-dim: rgba(255,69,96,0.08);
+				    --warn: #ffb400;
+				    --warn-dim: rgba(255,180,0,0.08);
+				    --success: #00e5a0;
+				    --success-dim: rgba(0,229,160,0.1);
+				    --mono: 'Share Tech Mono', monospace;
+				    --sans: 'Outfit', sans-serif;
+				  }
+				
+				  * { box-sizing: border-box; margin: 0; padding: 0; }
+				
+				  body {
+				    background: var(--bg);
+				    color: var(--text);
+				    font-family: var(--sans);
+				    min-height: 100vh;
+				    padding: 0;
+				  }
+				
+				  /* Grid background */
+				  body::before {
+				    content: '';
+				    position: fixed;
+				    inset: 0;
+				    background-image:
+				      linear-gradient(var(--border) 1px, transparent 1px),
+				      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+				    background-size: 40px 40px;
+				    opacity: 0.4;
+				    pointer-events: none;
+				    z-index: 0;
+				  }
+				
+				  .layout {
+				    position: relative;
+				    z-index: 1;
+				    max-width: 860px;
+				    margin: 0 auto;
+				    padding: 40px 24px 80px;
+				  }
+				
+				  /* Header */
+				  header {
+				    display: flex;
+				    align-items: center;
+				    gap: 16px;
+				    margin-bottom: 48px;
+				    padding-bottom: 24px;
+				    border-bottom: 1px solid var(--border-bright);
+				  }
+				
+				  .logo-mark {
+				    width: 40px;
+				    height: 40px;
+				    background: var(--accent-dim);
+				    border: 1px solid var(--accent);
+				    border-radius: 8px;
+				    display: flex;
+				    align-items: center;
+				    justify-content: center;
+				    color: var(--accent);
+				    font-family: var(--mono);
+				    font-size: 18px;
+				    flex-shrink: 0;
+				  }
+				
+				  header h1 {
+				    font-family: var(--mono);
+				    font-size: 20px;
+				    color: var(--accent);
+				    letter-spacing: 2px;
+				    text-transform: uppercase;
+				  }
+				
+				  header p {
+				    font-size: 12px;
+				    color: var(--muted);
+				    font-family: var(--mono);
+				    margin-top: 2px;
+				  }
+				
+				  .header-right {
+				    margin-left: auto;
+				    display: flex;
+				    align-items: center;
+				    gap: 8px;
+				    font-family: var(--mono);
+				    font-size: 11px;
+				    color: var(--muted);
+				  }
+				
+				  .status-dot {
+				    width: 7px;
+				    height: 7px;
+				    border-radius: 50%;
+				    background: var(--success);
+				    box-shadow: 0 0 6px var(--success);
+				    animation: pulse 2s infinite;
+				  }
+				
+				  @keyframes pulse {
+				    0%, 100% { opacity: 1; }
+				    50% { opacity: 0.4; }
+				  }
+				
+				  /* Section */
+				  .section {
+				    margin-bottom: 32px;
+				  }
+				
+				  .section-header {
+				    display: flex;
+				    align-items: center;
+				    gap: 10px;
+				    margin-bottom: 16px;
+				  }
+				
+				  .section-label {
+				    font-family: var(--mono);
+				    font-size: 10px;
+				    letter-spacing: 3px;
+				    text-transform: uppercase;
+				    color: var(--muted);
+				  }
+				
+				  .section-line {
+				    flex: 1;
+				    height: 1px;
+				    background: var(--border);
+				  }
+				
+				  /* Card */
+				  .card {
+				    background: var(--surface);
+				    border: 1px solid var(--border);
+				    border-radius: 10px;
+				    padding: 20px;
+				    margin-bottom: 12px;
+				    transition: border-color 0.2s;
+				  }
+				
+				  .card:hover {
+				    border-color: var(--border-bright);
+				  }
+				
+				  .card-title {
+				    font-size: 13px;
+				    font-weight: 600;
+				    color: var(--text);
+				    margin-bottom: 4px;
+				  }
+				
+				  .card-desc {
+				    font-size: 12px;
+				    color: var(--muted);
+				    margin-bottom: 16px;
+				    line-height: 1.5;
+				  }
+				
+				  .card-actions {
+				    display: flex;
+				    flex-wrap: wrap;
+				    gap: 8px;
+				  }
+				
+				  /* Buttons */
+				  .btn {
+				    font-family: var(--mono);
+				    font-size: 12px;
+				    padding: 8px 16px;
+				    border-radius: 6px;
+				    border: 1px solid;
+				    cursor: pointer;
+				    transition: all 0.15s;
+				    letter-spacing: 0.5px;
+				    display: inline-flex;
+				    align-items: center;
+				    gap: 6px;
+				  }
+				
+				  .btn:active { transform: scale(0.97); }
+				  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+				
+				  .btn-danger {
+				    background: var(--danger-dim);
+				    border-color: var(--danger);
+				    color: var(--danger);
+				  }
+				  .btn-danger:hover:not(:disabled) {
+				    background: rgba(255,69,96,0.18);
+				    box-shadow: 0 0 12px rgba(255,69,96,0.2);
+				  }
+				
+				  .btn-warn {
+				    background: var(--warn-dim);
+				    border-color: var(--warn);
+				    color: var(--warn);
+				  }
+				  .btn-warn:hover:not(:disabled) {
+				    background: rgba(255,180,0,0.18);
+				    box-shadow: 0 0 12px rgba(255,180,0,0.2);
+				  }
+				
+				  .btn-accent {
+				    background: var(--accent-dim);
+				    border-color: var(--accent);
+				    color: var(--accent);
+				  }
+				  .btn-accent:hover:not(:disabled) {
+				    background: rgba(0,200,255,0.15);
+				    box-shadow: 0 0 12px rgba(0,200,255,0.2);
+				  }
+				
+				  .btn-ghost {
+				    background: transparent;
+				    border-color: var(--border-bright);
+				    color: var(--muted);
+				  }
+				  .btn-ghost:hover:not(:disabled) {
+				    border-color: var(--text);
+				    color: var(--text);
+				  }
+				
+				  /* Spinner */
+				  .spin {
+				    display: inline-block;
+				    width: 12px;
+				    height: 12px;
+				    border: 2px solid currentColor;
+				    border-top-color: transparent;
+				    border-radius: 50%;
+				    animation: spin 0.6s linear infinite;
+				  }
+				  @keyframes spin { to { transform: rotate(360deg); } }
+				
+				  /* Toast log */
+				  #log {
+				    position: fixed;
+				    bottom: 24px;
+				    right: 24px;
+				    z-index: 100;
+				    display: flex;
+				    flex-direction: column;
+				    gap: 8px;
+				    max-width: 380px;
+				    pointer-events: none;
+				  }
+				
+				  .toast {
+				    font-family: var(--mono);
+				    font-size: 12px;
+				    padding: 10px 16px;
+				    border-radius: 8px;
+				    border: 1px solid;
+				    backdrop-filter: blur(8px);
+				    animation: slideIn 0.2s ease;
+				    pointer-events: auto;
+				  }
+				  .toast.ok  { background: rgba(0,229,160,0.1);   border-color: var(--success); color: var(--success); }
+				  .toast.err { background: rgba(255,69,96,0.1);   border-color: var(--danger);  color: var(--danger); }
+				  .toast.inf { background: rgba(0,200,255,0.08);  border-color: var(--accent);  color: var(--accent); }
+				
+				  @keyframes slideIn {
+				    from { opacity: 0; transform: translateX(20px); }
+				    to   { opacity: 1; transform: translateX(0); }
+				  }
+				
+				  /* Confirm modal */
+				  #modal-overlay {
+				    display: none;
+				    position: fixed;
+				    inset: 0;
+				    background: rgba(0,0,0,0.75);
+				    backdrop-filter: blur(4px);
+				    z-index: 200;
+				    align-items: center;
+				    justify-content: center;
+				  }
+				  #modal-overlay.open { display: flex; }
+				
+				  #modal {
+				    background: var(--surface);
+				    border: 1px solid var(--border-bright);
+				    border-radius: 12px;
+				    padding: 28px;
+				    max-width: 420px;
+				    width: 90%;
+				    font-family: var(--sans);
+				  }
+				
+				  #modal h2 {
+				    font-size: 16px;
+				    font-weight: 600;
+				    margin-bottom: 8px;
+				    color: var(--danger);
+				    font-family: var(--mono);
+				    letter-spacing: 1px;
+				  }
+				
+				  #modal p {
+				    font-size: 13px;
+				    color: var(--text);
+				    margin-bottom: 24px;
+				    line-height: 1.6;
+				  }
+				
+				  #modal code {
+				    font-family: var(--mono);
+				    background: rgba(0,200,255,0.07);
+				    border: 1px solid var(--border-bright);
+				    border-radius: 4px;
+				    padding: 1px 6px;
+				    font-size: 12px;
+				    color: var(--accent);
+				  }
+				
+				  .modal-btns {
+				    display: flex;
+				    gap: 10px;
+				    justify-content: flex-end;
+				  }
+				
+				  /* Aspect input area */
+				  .input-row {
+				    display: flex;
+				    gap: 8px;
+				    align-items: center;
+				  }
+				
+				  input[type="text"] {
+				    font-family: var(--mono);
+				    font-size: 12px;
+				    background: var(--bg);
+				    border: 1px solid var(--border-bright);
+				    border-radius: 6px;
+				    padding: 8px 12px;
+				    color: var(--text);
+				    flex: 1;
+				    outline: none;
+				    transition: border-color 0.15s;
+				  }
+				
+				  input[type="text"]:focus {
+				    border-color: var(--accent);
+				  }
+				
+				  input[type="text"]::placeholder {
+				    color: var(--muted);
+				  }
+				
+				  /* Raid chips */
+				  .chip-group {
+				    display: flex;
+				    flex-wrap: wrap;
+				    gap: 6px;
+				    margin-bottom: 12px;
+				  }
+				
+				  .chip {
+				    font-family: var(--mono);
+				    font-size: 11px;
+				    padding: 4px 10px;
+				    border-radius: 4px;
+				    border: 1px solid var(--border-bright);
+				    background: transparent;
+				    color: var(--muted);
+				    cursor: pointer;
+				    transition: all 0.15s;
+				  }
+				
+				  .chip.active, .chip:hover {
+				    border-color: var(--warn);
+				    color: var(--warn);
+				    background: var(--warn-dim);
+				  }
+				
+				  .chip-run {
+				    border-color: var(--border-bright);
+				  }
+				  .chip-run.active, .chip-run:hover {
+				    border-color: var(--accent);
+				    color: var(--accent);
+				    background: var(--accent-dim);
+				  }
+				
+				  /* Divider */
+				  hr {
+				    border: none;
+				    border-top: 1px solid var(--border);
+				    margin: 24px 0;
+				  }
+				</style>
+				</head>
+				<body>
+				
+				<div class="layout">
+				  <header>
+				    <div class="logo-mark">W</div>
+				    <div>
+				      <h1>WynnExtras Admin</h1>
+				      <p>wynnextras.com // internal panel</p>
+				    </div>
+				    <div class="header-right">
+				      <span class="status-dot"></span>
+				      <span id="server-status">connected</span>
+				    </div>
+				  </header>
+				
+				  <!-- LOOT POOL: RAIDS -->
+				  <div class="section">
+				    <div class="section-header">
+				      <span class="section-label">Raid Loot Pool</span>
+				      <div class="section-line"></div>
+				    </div>
+				
+				    <div class="card">
+				      <div class="card-title">Wipe Raid Pool — einzelner Raid</div>
+				      <div class="card-desc">
+				        Löscht den approved pool + alle submissions für diesen Raid in der aktuellen Woche.
+				        Nützlich wenn ein neuer Pool früher als normal erscheint.
+				      </div>
+				      <div class="chip-group" id="raid-chips">
+				        <button class="chip" data-val="NOTG">NOTG</button>
+				        <button class="chip" data-val="NOL">NOL</button>
+				        <button class="chip" data-val="TCC">TCC</button>
+				        <button class="chip" data-val="TNA">TNA</button>
+				      </div>
+				      <div class="card-actions">
+				        <button class="btn btn-warn" onclick="wipeRaid()">
+				          <span>⚡</span> Ausgewählte wipen
+				        </button>
+				      </div>
+				    </div>
+				
+				    <div class="card">
+				      <div class="card-title">Wipe Raid Pool — alle Raids</div>
+				      <div class="card-desc">Löscht alle approved pools + submissions aller Raids der aktuellen Woche.</div>
+				      <div class="card-actions">
+				        <button class="btn btn-danger" onclick="confirm('Wipe ALLE Raid Loot Pools?', () => doWipe('/admin/loot-pool/raid', 'Alle Raid Pools gewiped'))">
+				          ✕ Alle Raids wipen
+				        </button>
+				      </div>
+				    </div>
+				  </div>
+				
+				  <!-- LOOT POOL: LOOTRUNS -->
+				  <div class="section">
+				    <div class="section-header">
+				      <span class="section-label">Lootrun Loot Pool</span>
+				      <div class="section-line"></div>
+				    </div>
+				
+				    <div class="card">
+				      <div class="card-title">Wipe Lootrun Pool — einzelne Zone</div>
+				      <div class="card-desc">Löscht den approved pool + alle submissions für diese Lootrun-Zone.</div>
+				      <div class="chip-group" id="lootrun-chips">
+				        <button class="chip chip-run" data-val="SE">SE</button>
+				        <button class="chip chip-run" data-val="SI">SI</button>
+				        <button class="chip chip-run" data-val="MH">MH</button>
+				        <button class="chip chip-run" data-val="CORK">CORK</button>
+				        <button class="chip chip-run" data-val="COTL">COTL</button>
+				      </div>
+				      <div class="card-actions">
+				        <button class="btn btn-accent" onclick="wipeLootrun()">
+				          <span>⚡</span> Ausgewählte wipen
+				        </button>
+				      </div>
+				    </div>
+				
+				    <div class="card">
+				      <div class="card-title">Wipe Lootrun Pool — alle Zonen</div>
+				      <div class="card-desc">Löscht alle Lootrun approved pools + submissions.</div>
+				      <div class="card-actions">
+				        <button class="btn btn-danger" onclick="confirm('Wipe ALLE Lootrun Loot Pools?', () => doWipe('/admin/loot-pool/lootrun', 'Alle Lootrun Pools gewiped'))">
+				          ✕ Alle Lootruns wipen
+				        </button>
+				      </div>
+				    </div>
+				  </div>
+				
+				  <!-- ASPECTS -->
+				  <div class="section">
+				    <div class="section-header">
+				      <span class="section-label">Aspects</span>
+				      <div class="section-line"></div>
+				    </div>
+				
+				    <div class="card">
+				      <div class="card-title">Umbenannte Aspects wipen (bekannte)</div>
+				      <div class="card-desc">
+				        Diese Aspects wurden in Wynn umbenannt — die alten Namen werden bei allen Usern gelöscht.
+				      </div>
+				      <div class="card-actions" id="known-aspect-btns">
+				        <button class="btn btn-warn" onclick="wipeAspect('Aspect of Upkeep Charges')">
+				          Aspect of Upkeep Charges
+				        </button>
+				        <button class="btn btn-warn" onclick="wipeAspect('Aspect of Flickering Transmission')">
+				          Aspect of Flickering Transmission
+				        </button>
+				        <button class="btn btn-warn" onclick="wipeAspect(`Riftwalker's Embodiment of Chronal Control`)">
+				          Riftwalker's Embodiment of Chronal Control
+				        </button>
+				      </div>
+				    </div>
+				
+				    <div class="card">
+				      <div class="card-title">Custom Aspect-Name wipen</div>
+				      <div class="card-desc">
+				        Beliebigen Aspect-Namen bei allen Usern löschen. Exakt so eingeben wie er in der DB steht.
+				      </div>
+				      <div class="input-row">
+				        <input type="text" id="custom-aspect" placeholder="z.B. Aspect of Something Old" />
+				        <button class="btn btn-danger" onclick="wipeCustomAspect()">✕ Wipen</button>
+				      </div>
+				    </div>
+				
+				    <div class="card">
+				      <div class="card-title">Wipe alle Aspects eines Spielers</div>
+				      <div class="card-desc">
+				        UUID des Spielers (ohne Bindestriche, 32 Zeichen hex).
+				      </div>
+				      <div class="input-row">
+				        <input type="text" id="player-uuid" placeholder="z.B. 069a79f444e94726a5befca90e38aaf5" maxlength="36" />
+				        <button class="btn btn-danger" onclick="wipePlayerAspects()">✕ Wipen</button>
+				      </div>
+				    </div>
+				  </div>
+				
+				  <!-- MISC -->
+				  <div class="section">
+				    <div class="section-header">
+				      <span class="section-label">Sonstiges</span>
+				      <div class="section-line"></div>
+				    </div>
+				    <div class="card">
+				      <div class="card-title">Verified Users neu laden</div>
+				      <div class="card-desc">Lädt die Verified-User-Liste neu aus der Datei (VERIFIED_USERS.md).</div>
+				      <div class="card-actions">
+				        <button class="btn btn-accent" onclick="reloadVerified()">↻ Reload</button>
+				      </div>
+				    </div>
+				  </div>
+				</div>
+				
+				<!-- Confirm Modal -->
+				<div id="modal-overlay">
+				  <div id="modal">
+				    <h2>⚠ BESTÄTIGEN</h2>
+				    <p id="modal-text"></p>
+				    <div class="modal-btns">
+				      <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
+				      <button class="btn btn-danger" id="modal-confirm-btn" onclick="runConfirmed()">Bestätigen</button>
+				    </div>
+				  </div>
+				</div>
+				
+				<!-- Toast log -->
+				<div id="log"></div>
+				
+				<script>
+				  // --- State ---
+				  let selectedRaid = null;
+				  let selectedLootrun = null;
+				  let pendingAction = null;
+				
+				  // --- Chip selection ---
+				  document.querySelectorAll('#raid-chips .chip').forEach(c => {
+				    c.addEventListener('click', () => {
+				      document.querySelectorAll('#raid-chips .chip').forEach(x => x.classList.remove('active'));
+				      if (selectedRaid === c.dataset.val) {
+				        selectedRaid = null;
+				      } else {
+				        c.classList.add('active');
+				        selectedRaid = c.dataset.val;
+				      }
+				    });
+				  });
+				
+				  document.querySelectorAll('#lootrun-chips .chip').forEach(c => {
+				    c.addEventListener('click', () => {
+				      document.querySelectorAll('#lootrun-chips .chip').forEach(x => x.classList.remove('active'));
+				      if (selectedLootrun === c.dataset.val) {
+				        selectedLootrun = null;
+				      } else {
+				        c.classList.add('active');
+				        selectedLootrun = c.dataset.val;
+				      }
+				    });
+				  });
+				
+				  // --- Confirm modal ---
+				  function confirm(msg, action) {
+				    document.getElementById('modal-text').innerHTML = msg;
+				    pendingAction = action;
+				    document.getElementById('modal-overlay').classList.add('open');
+				  }
+				
+				  function closeModal() {
+				    document.getElementById('modal-overlay').classList.remove('open');
+				    pendingAction = null;
+				  }
+				
+				  function runConfirmed() {
+				    closeModal();
+				    if (pendingAction) pendingAction();
+				  }
+				
+				  // Close on overlay click
+				  document.getElementById('modal-overlay').addEventListener('click', e => {
+				    if (e.target === document.getElementById('modal-overlay')) closeModal();
+				  });
+				
+				  // --- Toast ---
+				  function toast(msg, type = 'inf') {
+				    const el = document.createElement('div');
+				    el.className = `toast ${type}`;
+				    el.textContent = msg;
+				    document.getElementById('log').appendChild(el);
+				    setTimeout(() => el.remove(), 4000);
+				  }
+				
+				  // --- API helper ---
+				  async function api(method, path, params = {}) {
+				    const url = new URL(path, window.location.origin);
+				    if (method === 'DELETE' || method === 'GET') {
+				      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+				    }
+				    const res = await fetch(url.toString(), {
+				      method,
+				      headers: { 'Content-Type': 'application/json' },
+				      body: method === 'POST' ? JSON.stringify(params) : undefined,
+				    });
+				    const text = await res.text();
+				    return { ok: res.ok, status: res.status, text };
+				  }
+				
+				  async function doWipe(path, successMsg, params = {}) {
+				    toast('Wipe läuft...', 'inf');
+				    try {
+				      const r = await api('DELETE', path, params);
+				      if (r.ok) {
+				        toast('✓ ' + successMsg, 'ok');
+				      } else {
+				        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+				      }
+				    } catch (e) {
+				      toast('✗ Netzwerkfehler: ' + e.message, 'err');
+				    }
+				  }
+				
+				  // --- Actions ---
+				  function wipeRaid() {
+				    if (!selectedRaid) { toast('Bitte erst einen Raid auswählen', 'err'); return; }
+				    confirm(
+				      `Loot Pool für <code>${selectedRaid}</code> wirklich wipen?<br><br>Approved pool + alle Submissions werden gelöscht.`,
+				      () => doWipe('/admin/loot-pool/raid', `Raid Pool gewiped: ${selectedRaid}`, { raidType: selectedRaid })
+				    );
+				  }
+				
+				  function wipeLootrun() {
+				    if (!selectedLootrun) { toast('Bitte erst eine Zone auswählen', 'err'); return; }
+				    confirm(
+				      `Loot Pool für Lootrun <code>${selectedLootrun}</code> wirklich wipen?`,
+				      () => doWipe('/admin/loot-pool/lootrun', `Lootrun Pool gewiped: ${selectedLootrun}`, { lootrunType: selectedLootrun })
+				    );
+				  }
+				
+				  function wipeAspect(name) {
+				    confirm(
+				      `Aspect <code>${name}</code> bei <strong>allen Usern</strong> löschen?`,
+				      () => doWipe('/admin/aspects', `Aspect gewiped: ${name}`, { aspectName: name })
+				    );
+				  }
+				
+				  function wipeCustomAspect() {
+				    const name = document.getElementById('custom-aspect').value.trim();
+				    if (!name) { toast('Aspect-Name eingeben', 'err'); return; }
+				    confirm(
+				      `Aspect <code>${name}</code> bei <strong>allen Usern</strong> löschen?`,
+				      async () => {
+				        await doWipe('/admin/aspects', `Aspect gewiped: ${name}`, { aspectName: name });
+				        document.getElementById('custom-aspect').value = '';
+				      }
+				    );
+				  }
+				
+				  function wipePlayerAspects() {
+				    let uuid = document.getElementById('player-uuid').value.trim().replace(/-/g, '').toLowerCase();
+				    if (!/^[0-9a-f]{32}$/.test(uuid)) { toast('Ungültige UUID (32 hex Zeichen erwartet)', 'err'); return; }
+				    confirm(
+				      `Alle Aspects für UUID <code>${uuid}</code> löschen?`,
+				      async () => {
+				        toast('Wipe läuft...', 'inf');
+				        try {
+				          const r = await api('DELETE', '/admin/aspects/player', { playerUuid: uuid });
+				          if (r.ok) {
+				            toast('✓ Player Aspects gewiped', 'ok');
+				            document.getElementById('player-uuid').value = '';
+				          } else {
+				            toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+				          }
+				        } catch(e) {
+				          toast('✗ ' + e.message, 'err');
+				        }
+				      }
+				    );
+				  }
+				
+				  async function reloadVerified() {
+				    toast('Reload...', 'inf');
+				    try {
+				      const r = await api('POST', '/admin/reload-verified-users');
+				      if (r.ok) {
+				        const data = JSON.parse(r.text);
+				        toast(`✓ Verified users geladen: ${data.verifiedUserCount}`, 'ok');
+				      } else {
+				        toast('✗ Fehler: ' + r.text, 'err');
+				      }
+				    } catch(e) {
+				      toast('✗ ' + e.message, 'err');
+				    }
+				  }
+				</script>
+				</body>
+				</html>
+        """;
+		return ResponseEntity.ok()
+				.header("Content-Type", "text/html; charset=UTF-8")
+				.body(html);
 	}
 }
