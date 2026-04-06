@@ -115,13 +115,15 @@ public class LootrunLootPoolController {
     private boolean isValidLootrunType(String lootrunType) {
         // Accept both short codes and full names
         return lootrunType.equals("SE") || lootrunType.equals("SI") ||
-               lootrunType.equals("MH") || lootrunType.equals("CORK") ||
-               lootrunType.equals("COTL") ||
-               lootrunType.equals("Silent Expanse") ||
-               lootrunType.equals("Sky Islands") ||
-               lootrunType.equals("Molten Heights") ||
-               lootrunType.equals("Corkus") ||
-               lootrunType.equals("Canyon of the Lost");
+            lootrunType.equals("MH") || lootrunType.equals("CORK") ||
+            lootrunType.equals("COTL") || lootrunType.equals("WFF") || lootrunType.equals("EFF") ||
+            lootrunType.equals("Silent Expanse") ||
+            lootrunType.equals("Sky Islands") ||
+            lootrunType.equals("Molten Heights") ||
+            lootrunType.equals("Corkus") ||
+            lootrunType.equals("Canyon of the Lost") ||
+            lootrunType.equals("The Fruma Foray (West)") ||
+            lootrunType.equals("The Fruma Foray (East)");
     }
 
     private static class Map<K, V> extends HashMap<K, V> {

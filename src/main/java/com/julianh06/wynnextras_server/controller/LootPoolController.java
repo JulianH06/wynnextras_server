@@ -116,11 +116,12 @@ public class LootPoolController {
     private boolean isValidRaidType(String raidType) {
         // Accept both short codes and full names
         return raidType.equals("NOTG") || raidType.equals("NOL") ||
-               raidType.equals("TCC") || raidType.equals("TNA") ||
-               raidType.equals("Nest of the Grootslangs") ||
-               raidType.equals("Orphion's Nexus of Light") ||
-               raidType.equals("The Canyon Colossus") ||
-               raidType.equals("The Nameless Anomaly");
+            raidType.equals("TCC") || raidType.equals("TNA") || raidType.equals("TWP") ||
+            raidType.equals("Nest of the Grootslangs") ||
+            raidType.equals("Orphion's Nexus of Light") ||
+            raidType.equals("The Canyon Colossus") ||
+            raidType.equals("The Nameless Anomaly") ||
+            raidType.equals("The Wartorn Palace");
     }
 
     private static class Map<K, V> extends java.util.HashMap<K, V> {
