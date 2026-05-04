@@ -10,9 +10,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @SpringBootApplication
 @RestController
@@ -33,28 +37,106 @@ public class WynnextrasServerApplication {
 	}
 
 	@GetMapping("/db")
-	public String viewDatabase() {
-		StringBuilder sb = new StringBuilder();
-
+	public ResponseEntity<String> viewDatabase() {
 		List<WynnExtrasUser> allUsers = wynnExtrasUserRepository.findActiveUsersSince(Instant.ofEpochSecond(0));
-		sb.append("Total entries:").append(allUsers.size()).append("<br><br>");
 
-		List<WynnExtrasUser> allUsersCopy = new ArrayList<>(allUsers);
-		allUsersCopy.sort(Comparator.comparing(WynnExtrasUser::getCreatedAt));
-		printUsers(sb, allUsersCopy);
+		List<WynnExtrasUser> sorted = new ArrayList<>(allUsers);
+		sorted.sort(Comparator.comparing(u -> u.getCreatedAt() != null ? u.getCreatedAt() : Instant.EPOCH));
 
-//		sb.append("<br> Time sorted: <br> <br>");
-//
-//		allUsers.sort((u1, u2) -> {
-//			if (u1.getLastSeen() == null && u2.getLastSeen() == null) return 0;
-//			if (u1.getLastSeen() == null) return -1;
-//			if (u2.getLastSeen() == null) return 1;
-//			return u1.getLastSeen().compareTo(u2.getLastSeen());
-//		});
-//
-//		printUsers(sb, allUsers);
+		DateTimeFormatter dayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.of("UTC"));
+		Map<String, Integer> perDay = new LinkedHashMap<>();
+		for (WynnExtrasUser u : sorted) {
+			if (u.getCreatedAt() == null) continue;
+			String day = dayFmt.format(u.getCreatedAt());
+			perDay.merge(day, 1, Integer::sum);
+		}
 
-		return sb.toString();
+		StringBuilder labels = new StringBuilder();
+		StringBuilder data = new StringBuilder();
+		int cumulative = 0;
+		for (Map.Entry<String, Integer> e : perDay.entrySet()) {
+			cumulative += e.getValue();
+			if (labels.length() > 0) { labels.append(","); data.append(","); }
+			labels.append("\"").append(e.getKey()).append("\"");
+			data.append(cumulative);
+		}
+
+		StringBuilder sb = new StringBuilder();
+		sb.append("""
+				<!DOCTYPE html>
+				<html lang="de">
+				<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>WynnExtras DB</title>
+				<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+				<style>
+				  body { background: #0a0c0f; color: #c8d8e8; font-family: monospace; padding: 24px; }
+				  h2 { color: #00c8ff; margin-bottom: 8px; }
+				  .chart-wrap { background: #111419; border: 1px solid #1e2530; border-radius: 10px; padding: 20px; margin-bottom: 32px; max-width: 900px; }
+				  .user-list { font-size: 13px; line-height: 1.8; }
+				</style>
+				</head>
+				<body>
+				""");
+
+		sb.append("<h2>Total users: ").append(allUsers.size()).append("</h2>");
+		sb.append("""
+				<div class="chart-wrap">
+				  <canvas id="userChart" height="80"></canvas>
+				</div>
+				<script>
+				  new Chart(document.getElementById('userChart'), {
+				    type: 'line',
+				    data: {
+				      labels: [
+				""");
+		sb.append(labels);
+		sb.append("""
+				      ],
+				      datasets: [{
+				        label: 'Total unique users',
+				        data: [
+				""");
+		sb.append(data);
+		sb.append("""
+				        ],
+				        borderColor: '#00c8ff',
+				        backgroundColor: 'rgba(0,200,255,0.08)',
+				        borderWidth: 2,
+				        pointRadius: 2,
+				        fill: true,
+				        tension: 0.3
+				      }]
+				    },
+				    options: {
+				      responsive: true,
+				      scales: {
+				        x: {
+				          ticks: { color: '#4a6080', maxTicksLimit: 12 },
+				          grid: { color: '#1e2530' }
+				        },
+				        y: {
+				          beginAtZero: true,
+				          ticks: { color: '#4a6080' },
+				          grid: { color: '#1e2530' }
+				        }
+				      },
+				      plugins: {
+				        legend: { labels: { color: '#c8d8e8' } }
+				      }
+				    }
+				  });
+				</script>
+				<div class="user-list">
+				""");
+
+		printUsers(sb, sorted);
+		sb.append("</div></body></html>");
+
+		return ResponseEntity.ok()
+				.header("Content-Type", "text/html; charset=UTF-8")
+				.body(sb.toString());
 	}
 
 	private void printUsers(StringBuilder sb, List<WynnExtrasUser> allUsersCopy) {
