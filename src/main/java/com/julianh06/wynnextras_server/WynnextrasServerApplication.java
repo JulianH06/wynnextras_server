@@ -125,9 +125,23 @@ public class WynnextrasServerApplication {
 
 		// ── HTML ──────────────────────────────────────────────────────────
 		StringBuilder sb = new StringBuilder();
+		// Pie chart colors for versions
+		String[] pieColors = {
+			"rgba(0,200,255,0.7)","rgba(0,229,160,0.7)","rgba(255,180,0,0.7)",
+			"rgba(255,69,96,0.7)","rgba(180,100,255,0.7)","rgba(255,140,50,0.7)",
+			"rgba(50,200,120,0.7)","rgba(100,160,255,0.7)","rgba(255,220,50,0.7)","rgba(200,80,160,0.7)"
+		};
+		StringBuilder c4colors = new StringBuilder();
+		int vi = 0;
+		for (Map.Entry<String, Integer> e : vEntries) {
+			if (c4colors.length() > 0) c4colors.append(",");
+			c4colors.append('"').append(pieColors[vi % pieColors.length]).append('"');
+			vi++;
+		}
+
 		sb.append("""
 				<!DOCTYPE html>
-				<html lang="de">
+				<html lang="en">
 				<head>
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -154,18 +168,18 @@ public class WynnextrasServerApplication {
 		sb.append("<div class=\"grid\" style=\"max-width:1200px\">");
 
 		// Chart 1
-		sb.append("<div class=\"card\"><div class=\"card-title\">Kumulierte unique user</div><canvas id=\"c1\" height=\"70\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Cumulative unique users</div><canvas id=\"c1\" height=\"70\"></canvas></div>");
 
 		// Chart 2
-		sb.append("<div class=\"card\"><div class=\"card-title\">Neue user pro woche</div><canvas id=\"c2\" height=\"70\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">New users per week</div><canvas id=\"c2\" height=\"70\"></canvas></div>");
 
 		// Chart 3
-		sb.append("<div class=\"card\"><div class=\"card-title\">Tägliche aktivität (last-seen) + 7-Tage-Schnitt</div><canvas id=\"c3\" height=\"70\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Daily activity (last-seen) + 7-day rolling average</div><canvas id=\"c3\" height=\"70\"></canvas></div>");
 
 		// Charts 4+5 side by side
 		sb.append("<div class=\"grid grid-2\">");
-		sb.append("<div class=\"card\"><div class=\"card-title\">Mod-versionsverteilung</div><canvas id=\"c4\" height=\"130\"></canvas></div>");
-		sb.append("<div class=\"card\"><div class=\"card-title\">Aktivität nach Uhrzeit (UTC)</div><canvas id=\"c5\" height=\"130\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Mod version distribution</div><canvas id=\"c4\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Activity by hour of day (UTC)</div><canvas id=\"c5\" height=\"130\"></canvas></div>");
 		sb.append("</div>");
 
 		sb.append("</div>"); // grid
@@ -174,24 +188,25 @@ public class WynnextrasServerApplication {
 
 		// Chart 1 script
 		sb.append("new Chart(document.getElementById('c1'),{ type:'line', data:{ labels:[").append(c1l)
-				.append("], datasets:[{ label:'Gesamt', data:[").append(c1d)
+				.append("], datasets:[{ label:'Total', data:[").append(c1d)
 				.append("], borderColor:'#00c8ff', backgroundColor:'rgba(0,200,255,0.08)', borderWidth:2, pointRadius:1, fill:true, tension:0.3 }] }, options:opts() });\n");
 
 		// Chart 2 script
 		sb.append("new Chart(document.getElementById('c2'),{ type:'bar', data:{ labels:[").append(c2l)
-				.append("], datasets:[{ label:'Neue user', data:[").append(c2d)
+				.append("], datasets:[{ label:'New users', data:[").append(c2d)
 				.append("], backgroundColor:'rgba(0,229,160,0.5)', borderColor:'#00e5a0', borderWidth:1 }] }, options:opts() });\n");
 
 		// Chart 3 script
 		sb.append("new Chart(document.getElementById('c3'),{ type:'bar', data:{ labels:[").append(c3l)
-				.append("], datasets:[ { label:'Last-seen pro Tag', data:[").append(c3bar)
-				.append("], backgroundColor:'rgba(0,200,255,0.25)', borderColor:'rgba(0,200,255,0.5)', borderWidth:1, order:2 }, { label:'7-Tage-Schnitt', data:[").append(c3avg)
+				.append("], datasets:[ { label:'Last-seen per day', data:[").append(c3bar)
+				.append("], backgroundColor:'rgba(0,200,255,0.25)', borderColor:'rgba(0,200,255,0.5)', borderWidth:1, order:2 }, { label:'7-day average', data:[").append(c3avg)
 				.append("], type:'line', borderColor:'#ffb400', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.3, order:1 } ] }, options:opts() });\n");
 
-		// Chart 4 script
-		sb.append("new Chart(document.getElementById('c4'),{ type:'bar', data:{ labels:[").append(c4l)
-				.append("], datasets:[{ label:'User', data:[").append(c4d)
-				.append("], backgroundColor:'rgba(255,180,0,0.45)', borderColor:'#ffb400', borderWidth:1 }] }, options:opts({ indexAxis:'y', scales:{ x:{ beginAtZero:true, ticks:{color:'#4a6080'}, grid:{color:'#1e2530'} }, y:{ ticks:{color:'#4a6080'}, grid:{color:'#1e2530'} } } }) });\n");
+		// Chart 4 script — pie chart
+		sb.append("new Chart(document.getElementById('c4'),{ type:'doughnut', data:{ labels:[").append(c4l)
+				.append("], datasets:[{ data:[").append(c4d)
+				.append("], backgroundColor:[").append(c4colors)
+				.append("], borderColor:'#111419', borderWidth:2 }] }, options:{ responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } } } } });\n");
 
 		// Chart 5 script
 		String[] hourLabels = new String[24];
