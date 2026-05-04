@@ -10,9 +10,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,27 +42,88 @@ public class WynnextrasServerApplication {
 	public ResponseEntity<String> viewDatabase() {
 		List<WynnExtrasUser> allUsers = wynnExtrasUserRepository.findActiveUsersSince(Instant.ofEpochSecond(0));
 
+		ZoneId utc = ZoneId.of("UTC");
+		DateTimeFormatter dayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(utc);
+
 		List<WynnExtrasUser> sorted = new ArrayList<>(allUsers);
 		sorted.sort(Comparator.comparing(u -> u.getCreatedAt() != null ? u.getCreatedAt() : Instant.EPOCH));
 
-		DateTimeFormatter dayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.of("UTC"));
-		Map<String, Integer> perDay = new LinkedHashMap<>();
+		// ── Chart 1: Cumulative users ─────────────────────────────────────
+		Map<String, Integer> createdPerDay = new LinkedHashMap<>();
 		for (WynnExtrasUser u : sorted) {
 			if (u.getCreatedAt() == null) continue;
-			String day = dayFmt.format(u.getCreatedAt());
-			perDay.merge(day, 1, Integer::sum);
+			createdPerDay.merge(dayFmt.format(u.getCreatedAt()), 1, Integer::sum);
+		}
+		StringBuilder c1l = new StringBuilder(), c1d = new StringBuilder();
+		int cum = 0;
+		for (Map.Entry<String, Integer> e : createdPerDay.entrySet()) {
+			cum += e.getValue();
+			if (c1l.length() > 0) { c1l.append(","); c1d.append(","); }
+			c1l.append('"').append(e.getKey()).append('"');
+			c1d.append(cum);
 		}
 
-		StringBuilder labels = new StringBuilder();
-		StringBuilder data = new StringBuilder();
-		int cumulative = 0;
-		for (Map.Entry<String, Integer> e : perDay.entrySet()) {
-			cumulative += e.getValue();
-			if (labels.length() > 0) { labels.append(","); data.append(","); }
-			labels.append("\"").append(e.getKey()).append("\"");
-			data.append(cumulative);
+		// ── Chart 2: New users per week ───────────────────────────────────
+		Map<String, Integer> newPerWeek = new LinkedHashMap<>();
+		for (WynnExtrasUser u : sorted) {
+			if (u.getCreatedAt() == null) continue;
+			LocalDate monday = LocalDate.ofInstant(u.getCreatedAt(), utc).with(java.time.DayOfWeek.MONDAY);
+			newPerWeek.merge(monday.toString(), 1, Integer::sum);
+		}
+		StringBuilder c2l = new StringBuilder(), c2d = new StringBuilder();
+		for (Map.Entry<String, Integer> e : newPerWeek.entrySet()) {
+			if (c2l.length() > 0) { c2l.append(","); c2d.append(","); }
+			c2l.append('"').append(e.getKey()).append('"');
+			c2d.append(e.getValue());
 		}
 
+		// ── Chart 3: Daily last-seen + 7-day rolling average ─────────────
+		Map<String, Integer> lastSeenMap = new LinkedHashMap<>();
+		for (WynnExtrasUser u : allUsers) {
+			if (u.getLastSeen() == null) continue;
+			lastSeenMap.merge(dayFmt.format(u.getLastSeen()), 1, Integer::sum);
+		}
+		List<String> lsDays = new ArrayList<>(lastSeenMap.keySet());
+		Collections.sort(lsDays);
+		StringBuilder c3l = new StringBuilder(), c3bar = new StringBuilder(), c3avg = new StringBuilder();
+		for (int i = 0; i < lsDays.size(); i++) {
+			if (c3l.length() > 0) { c3l.append(","); c3bar.append(","); c3avg.append(","); }
+			c3l.append('"').append(lsDays.get(i)).append('"');
+			c3bar.append(lastSeenMap.get(lsDays.get(i)));
+			int start = Math.max(0, i - 6);
+			int sum = 0;
+			for (int j = start; j <= i; j++) sum += lastSeenMap.get(lsDays.get(j));
+			c3avg.append(String.format("%.1f", (double) sum / (i - start + 1)).replace(',', '.'));
+		}
+
+		// ── Chart 4: Mod version distribution ────────────────────────────
+		Map<String, Integer> versionMap = new LinkedHashMap<>();
+		for (WynnExtrasUser u : allUsers) {
+			if (u.getModVersion() == null || u.getModVersion().isBlank()) continue;
+			versionMap.merge(u.getModVersion(), 1, Integer::sum);
+		}
+		List<Map.Entry<String, Integer>> vEntries = new ArrayList<>(versionMap.entrySet());
+		vEntries.sort((a, b) -> b.getValue() - a.getValue());
+		StringBuilder c4l = new StringBuilder(), c4d = new StringBuilder();
+		for (Map.Entry<String, Integer> e : vEntries) {
+			if (c4l.length() > 0) { c4l.append(","); c4d.append(","); }
+			c4l.append('"').append(e.getKey()).append('"');
+			c4d.append(e.getValue());
+		}
+
+		// ── Chart 5: Hour-of-day activity ─────────────────────────────────
+		int[] hours = new int[24];
+		for (WynnExtrasUser u : allUsers) {
+			if (u.getLastSeen() == null) continue;
+			hours[u.getLastSeen().atZone(utc).getHour()]++;
+		}
+		StringBuilder c5d = new StringBuilder();
+		for (int i = 0; i < 24; i++) {
+			if (i > 0) c5d.append(",");
+			c5d.append(hours[i]);
+		}
+
+		// ── HTML ──────────────────────────────────────────────────────────
 		StringBuilder sb = new StringBuilder();
 		sb.append("""
 				<!DOCTYPE html>
@@ -71,66 +134,75 @@ public class WynnextrasServerApplication {
 				<title>WynnExtras DB</title>
 				<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 				<style>
-				  body { background: #0a0c0f; color: #c8d8e8; font-family: monospace; padding: 24px; }
-				  h2 { color: #00c8ff; margin-bottom: 8px; }
-				  .chart-wrap { background: #111419; border: 1px solid #1e2530; border-radius: 10px; padding: 20px; margin-bottom: 32px; max-width: 900px; }
-				  .user-list { font-size: 13px; line-height: 1.8; }
+				  * { box-sizing: border-box; margin: 0; padding: 0; }
+				  body { background: #0a0c0f; color: #c8d8e8; font-family: 'Share Tech Mono', monospace; padding: 32px; }
+				  h1 { color: #00c8ff; font-size: 20px; letter-spacing: 2px; margin-bottom: 4px; }
+				  .subtitle { color: #4a6080; font-size: 12px; margin-bottom: 32px; }
+				  .grid { display: grid; gap: 20px; max-width: 1200px; }
+				  .grid-2 { grid-template-columns: 1fr 1fr; }
+				  .card { background: #111419; border: 1px solid #1e2530; border-radius: 10px; padding: 20px; }
+				  .card-title { color: #4a6080; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 16px; }
+				  .user-list { font-size: 12px; line-height: 1.9; margin-top: 32px; max-width: 1200px; color: #8aa0b8; }
+				  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
 				</style>
 				</head>
 				<body>
 				""");
 
-		sb.append("<h2>Total users: ").append(allUsers.size()).append("</h2>");
-		sb.append("""
-				<div class="chart-wrap">
-				  <canvas id="userChart" height="80"></canvas>
-				</div>
-				<script>
-				  new Chart(document.getElementById('userChart'), {
-				    type: 'line',
-				    data: {
-				      labels: [
-				""");
-		sb.append(labels);
-		sb.append("""
-				      ],
-				      datasets: [{
-				        label: 'Total unique users',
-				        data: [
-				""");
-		sb.append(data);
-		sb.append("""
-				        ],
-				        borderColor: '#00c8ff',
-				        backgroundColor: 'rgba(0,200,255,0.08)',
-				        borderWidth: 2,
-				        pointRadius: 2,
-				        fill: true,
-				        tension: 0.3
-				      }]
-				    },
-				    options: {
-				      responsive: true,
-				      scales: {
-				        x: {
-				          ticks: { color: '#4a6080', maxTicksLimit: 12 },
-				          grid: { color: '#1e2530' }
-				        },
-				        y: {
-				          beginAtZero: true,
-				          ticks: { color: '#4a6080' },
-				          grid: { color: '#1e2530' }
-				        }
-				      },
-				      plugins: {
-				        legend: { labels: { color: '#c8d8e8' } }
-				      }
-				    }
-				  });
-				</script>
-				<div class="user-list">
-				""");
+		sb.append("<h1>WynnExtras DB</h1>");
+		sb.append("<p class=\"subtitle\">Total users: ").append(allUsers.size()).append("</p>");
+		sb.append("<div class=\"grid\" style=\"max-width:1200px\">");
 
+		// Chart 1
+		sb.append("<div class=\"card\"><div class=\"card-title\">Kumulierte unique user</div><canvas id=\"c1\" height=\"70\"></canvas></div>");
+
+		// Chart 2
+		sb.append("<div class=\"card\"><div class=\"card-title\">Neue user pro woche</div><canvas id=\"c2\" height=\"70\"></canvas></div>");
+
+		// Chart 3
+		sb.append("<div class=\"card\"><div class=\"card-title\">Tägliche aktivität (last-seen) + 7-Tage-Schnitt</div><canvas id=\"c3\" height=\"70\"></canvas></div>");
+
+		// Charts 4+5 side by side
+		sb.append("<div class=\"grid grid-2\">");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Mod-versionsverteilung</div><canvas id=\"c4\" height=\"130\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Aktivität nach Uhrzeit (UTC)</div><canvas id=\"c5\" height=\"130\"></canvas></div>");
+		sb.append("</div>");
+
+		sb.append("</div>"); // grid
+
+		sb.append("<script>\nconst opts = (extra={}) => ({ responsive:true, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } } }, scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, ticks:{color:'#4a6080'}, grid:{color:'#1e2530'} } }, ...extra });\n");
+
+		// Chart 1 script
+		sb.append("new Chart(document.getElementById('c1'),{ type:'line', data:{ labels:[").append(c1l)
+				.append("], datasets:[{ label:'Gesamt', data:[").append(c1d)
+				.append("], borderColor:'#00c8ff', backgroundColor:'rgba(0,200,255,0.08)', borderWidth:2, pointRadius:1, fill:true, tension:0.3 }] }, options:opts() });\n");
+
+		// Chart 2 script
+		sb.append("new Chart(document.getElementById('c2'),{ type:'bar', data:{ labels:[").append(c2l)
+				.append("], datasets:[{ label:'Neue user', data:[").append(c2d)
+				.append("], backgroundColor:'rgba(0,229,160,0.5)', borderColor:'#00e5a0', borderWidth:1 }] }, options:opts() });\n");
+
+		// Chart 3 script
+		sb.append("new Chart(document.getElementById('c3'),{ type:'bar', data:{ labels:[").append(c3l)
+				.append("], datasets:[ { label:'Last-seen pro Tag', data:[").append(c3bar)
+				.append("], backgroundColor:'rgba(0,200,255,0.25)', borderColor:'rgba(0,200,255,0.5)', borderWidth:1, order:2 }, { label:'7-Tage-Schnitt', data:[").append(c3avg)
+				.append("], type:'line', borderColor:'#ffb400', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.3, order:1 } ] }, options:opts() });\n");
+
+		// Chart 4 script
+		sb.append("new Chart(document.getElementById('c4'),{ type:'bar', data:{ labels:[").append(c4l)
+				.append("], datasets:[{ label:'User', data:[").append(c4d)
+				.append("], backgroundColor:'rgba(255,180,0,0.45)', borderColor:'#ffb400', borderWidth:1 }] }, options:opts({ indexAxis:'y', scales:{ x:{ beginAtZero:true, ticks:{color:'#4a6080'}, grid:{color:'#1e2530'} }, y:{ ticks:{color:'#4a6080'}, grid:{color:'#1e2530'} } } }) });\n");
+
+		// Chart 5 script
+		String[] hourLabels = new String[24];
+		for (int i = 0; i < 24; i++) hourLabels[i] = '"' + String.format("%02d:00", i) + '"';
+		sb.append("new Chart(document.getElementById('c5'),{ type:'bar', data:{ labels:[").append(String.join(",", hourLabels))
+				.append("], datasets:[{ label:'Last-seen count', data:[").append(c5d)
+				.append("], backgroundColor:'rgba(255,69,96,0.45)', borderColor:'#ff4560', borderWidth:1 }] }, options:opts() });\n");
+
+		sb.append("</script>\n");
+
+		sb.append("<div class=\"user-list\">");
 		printUsers(sb, sorted);
 		sb.append("</div></body></html>");
 
