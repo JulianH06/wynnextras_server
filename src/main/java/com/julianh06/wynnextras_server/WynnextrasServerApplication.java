@@ -97,6 +97,11 @@ public class WynnextrasServerApplication {
 		}
 
 		// ── Chart 4: Mod version distribution ────────────────────────────
+		String[] pieColors = {
+			"rgba(0,200,255,0.7)","rgba(0,229,160,0.7)","rgba(255,180,0,0.7)",
+			"rgba(255,69,96,0.7)","rgba(180,100,255,0.7)","rgba(255,140,50,0.7)",
+			"rgba(50,200,120,0.7)","rgba(100,160,255,0.7)","rgba(255,220,50,0.7)","rgba(200,80,160,0.7)"
+		};
 		Map<String, Integer> versionMap = new LinkedHashMap<>();
 		for (WynnExtrasUser u : allUsers) {
 			if (u.getModVersion() == null || u.getModVersion().isBlank()) continue;
@@ -109,6 +114,42 @@ public class WynnextrasServerApplication {
 			if (c4l.length() > 0) { c4l.append(","); c4d.append(","); }
 			c4l.append('"').append(e.getKey()).append('"');
 			c4d.append(e.getValue());
+		}
+
+		// ── Charts 4b/4c: Version distribution — active last 7 / 14 days ──
+		Instant now = Instant.now();
+		Instant cutoff7  = now.minus(7,  java.time.temporal.ChronoUnit.DAYS);
+		Instant cutoff14 = now.minus(14, java.time.temporal.ChronoUnit.DAYS);
+
+		Map<String, Integer> versionMap7  = new LinkedHashMap<>();
+		Map<String, Integer> versionMap14 = new LinkedHashMap<>();
+		for (WynnExtrasUser u : allUsers) {
+			if (u.getModVersion() == null || u.getModVersion().isBlank() || u.getLastSeen() == null) continue;
+			if (u.getLastSeen().isAfter(cutoff7))  versionMap7.merge(u.getModVersion(),  1, Integer::sum);
+			if (u.getLastSeen().isAfter(cutoff14)) versionMap14.merge(u.getModVersion(), 1, Integer::sum);
+		}
+		List<Map.Entry<String, Integer>> vEntries7  = new ArrayList<>(versionMap7.entrySet());
+		List<Map.Entry<String, Integer>> vEntries14 = new ArrayList<>(versionMap14.entrySet());
+		vEntries7.sort((a, b)  -> b.getValue() - a.getValue());
+		vEntries14.sort((a, b) -> b.getValue() - a.getValue());
+
+		StringBuilder c4bl = new StringBuilder(), c4bd = new StringBuilder(), c4bColors = new StringBuilder();
+		StringBuilder c4cl = new StringBuilder(), c4cd = new StringBuilder(), c4cColors = new StringBuilder();
+		int vi7 = 0;
+		for (Map.Entry<String, Integer> e : vEntries7) {
+			if (c4bl.length() > 0) { c4bl.append(","); c4bd.append(","); c4bColors.append(","); }
+			c4bl.append('"').append(e.getKey()).append('"');
+			c4bd.append(e.getValue());
+			c4bColors.append('"').append(pieColors[vi7 % pieColors.length]).append('"');
+			vi7++;
+		}
+		int vi14 = 0;
+		for (Map.Entry<String, Integer> e : vEntries14) {
+			if (c4cl.length() > 0) { c4cl.append(","); c4cd.append(","); c4cColors.append(","); }
+			c4cl.append('"').append(e.getKey()).append('"');
+			c4cd.append(e.getValue());
+			c4cColors.append('"').append(pieColors[vi14 % pieColors.length]).append('"');
+			vi14++;
 		}
 
 		// ── Chart 5: Hour-of-day activity ─────────────────────────────────
@@ -125,12 +166,6 @@ public class WynnextrasServerApplication {
 
 		// ── HTML ──────────────────────────────────────────────────────────
 		StringBuilder sb = new StringBuilder();
-		// Pie chart colors for versions
-		String[] pieColors = {
-			"rgba(0,200,255,0.7)","rgba(0,229,160,0.7)","rgba(255,180,0,0.7)",
-			"rgba(255,69,96,0.7)","rgba(180,100,255,0.7)","rgba(255,140,50,0.7)",
-			"rgba(50,200,120,0.7)","rgba(100,160,255,0.7)","rgba(255,220,50,0.7)","rgba(200,80,160,0.7)"
-		};
 		StringBuilder c4colors = new StringBuilder();
 		int vi = 0;
 		for (Map.Entry<String, Integer> e : vEntries) {
@@ -178,8 +213,14 @@ public class WynnextrasServerApplication {
 
 		// Charts 4+5 side by side
 		sb.append("<div class=\"grid grid-2\">");
-		sb.append("<div class=\"card\"><div class=\"card-title\">Mod version distribution</div><canvas id=\"c4\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Mod version distribution (all time)</div><canvas id=\"c4\"></canvas></div>");
 		sb.append("<div class=\"card\"><div class=\"card-title\">Activity by hour of day (UTC)</div><canvas id=\"c5\" height=\"130\"></canvas></div>");
+		sb.append("</div>");
+
+		// Charts 4b+4c side by side
+		sb.append("<div class=\"grid grid-2\">");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Mod version distribution — active last 7 days</div><canvas id=\"c4b\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Mod version distribution — active last 14 days</div><canvas id=\"c4c\"></canvas></div>");
 		sb.append("</div>");
 
 		sb.append("</div>"); // grid
@@ -206,6 +247,18 @@ public class WynnextrasServerApplication {
 		sb.append("new Chart(document.getElementById('c4'),{ type:'doughnut', data:{ labels:[").append(c4l)
 				.append("], datasets:[{ data:[").append(c4d)
 				.append("], backgroundColor:[").append(c4colors)
+				.append("], borderColor:'#111419', borderWidth:2 }] }, options:{ responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } } } } });\n");
+
+		// Chart 4b script — active last 7 days
+		sb.append("new Chart(document.getElementById('c4b'),{ type:'doughnut', data:{ labels:[").append(c4bl)
+				.append("], datasets:[{ data:[").append(c4bd)
+				.append("], backgroundColor:[").append(c4bColors)
+				.append("], borderColor:'#111419', borderWidth:2 }] }, options:{ responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } } } } });\n");
+
+		// Chart 4c script — active last 14 days
+		sb.append("new Chart(document.getElementById('c4c'),{ type:'doughnut', data:{ labels:[").append(c4cl)
+				.append("], datasets:[{ data:[").append(c4cd)
+				.append("], backgroundColor:[").append(c4cColors)
 				.append("], borderColor:'#111419', borderWidth:2 }] }, options:{ responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } } } } });\n");
 
 		// Chart 5 script
