@@ -1,5 +1,8 @@
 package com.julianh06.wynnextras_server.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
 import com.julianh06.wynnextras_server.repository.*;
 import com.julianh06.wynnextras_server.service.VerifiedUserLoader;
 import jakarta.transaction.Transactional;
@@ -9,7 +12,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,6 +37,7 @@ public class AdminController {
     @Autowired private LootrunLootPoolApprovedRepository lootrunApprovedRepo;
     @Autowired private LootrunLootPoolSubmissionRepository lootrunSubmissionRepo;
     @Autowired private PersonalAspectRepository personalAspectRepo;
+    @Autowired private WynnExtrasUserRepository wynnExtrasUserRepository;
 
     /**
      * Reload verified users from file
@@ -165,5 +177,90 @@ public class AdminController {
                 "status", "success",
                 "message", "Alle Aspects gewiped für UUID: " + normalized
         ));
+    }
+
+    @GetMapping("/guild-lookup")
+    public ResponseEntity<?> guildLookup(@RequestParam String tag) {
+        try {
+            String url = "https://api.wynncraft.com/v3/guild/prefix/" + URLEncoder.encode(tag.trim(), StandardCharsets.UTF_8);
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(10))
+                    .build();
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+
+            if (resp.statusCode() == 404) {
+                return ResponseEntity.status(404).body(Map.of("error", "Guild not found"));
+            }
+            if (resp.statusCode() != 200) {
+                return ResponseEntity.status(502).body(Map.of("error", "Wynncraft API error: " + resp.statusCode()));
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(resp.body());
+
+            String guildName = root.path("name").asText();
+            String guildPrefix = root.path("prefix").asText();
+
+            JsonNode membersNode = root.path("members");
+            String[] ranks = {"owner", "chief", "strategist", "captain", "recruiter", "recruit"};
+
+            List<String> allUuids = new ArrayList<>();
+            List<Map<String, Object>> memberList = new ArrayList<>();
+
+            for (String rank : ranks) {
+                JsonNode rankNode = membersNode.path(rank);
+                if (rankNode.isMissingNode() || !rankNode.isObject()) continue;
+                rankNode.fields().forEachRemaining(entry -> {
+                    String playerName = entry.getKey();
+                    String rawUuid = entry.getValue().path("uuid").asText();
+                    String uuid = rawUuid.replace("-", "");
+                    allUuids.add(uuid);
+                    Map<String, Object> member = new HashMap<>();
+                    member.put("name", playerName);
+                    member.put("rank", rank.toUpperCase());
+                    member.put("uuid", uuid);
+                    memberList.add(member);
+                });
+            }
+
+            List<WynnExtrasUser> dbUsers = wynnExtrasUserRepository.findAllById(allUuids);
+            Map<String, WynnExtrasUser> userByUuid = new HashMap<>();
+            for (WynnExtrasUser u : dbUsers) {
+                userByUuid.put(u.getUuid(), u);
+            }
+
+            for (Map<String, Object> member : memberList) {
+                String uuid = (String) member.get("uuid");
+                WynnExtrasUser user = userByUuid.get(uuid);
+                if (user != null) {
+                    member.put("isUser", true);
+                    member.put("lastSeen", user.getLastSeen() != null ? user.getLastSeen().toEpochMilli() : null);
+                    member.put("modVersion", user.getModVersion());
+                } else {
+                    member.put("isUser", false);
+                    member.put("lastSeen", null);
+                    member.put("modVersion", null);
+                }
+            }
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("guildName", guildName);
+            result.put("guildPrefix", guildPrefix);
+            result.put("members", memberList);
+
+            return ResponseEntity.ok(result);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return ResponseEntity.status(502).body(Map.of("error", "Request interrupted"));
+        } catch (Exception e) {
+            logger.error("Error fetching guild data for tag: {}", tag, e);
+            return ResponseEntity.status(502).body(Map.of("error", "Error: " + e.getMessage()));
+        }
     }
 }

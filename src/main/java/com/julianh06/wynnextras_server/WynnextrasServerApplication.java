@@ -198,8 +198,14 @@ public class WynnextrasServerApplication {
 				<body>
 				""");
 
+		long activeUsers7  = allUsers.stream().filter(u -> u.getLastSeen() != null && u.getLastSeen().isAfter(cutoff7)).count();
+		long activeUsers14 = allUsers.stream().filter(u -> u.getLastSeen() != null && u.getLastSeen().isAfter(cutoff14)).count();
+
 		sb.append("<h1>WynnExtras DB</h1>");
-		sb.append("<p class=\"subtitle\">Total users: ").append(allUsers.size()).append("</p>");
+		sb.append("<p class=\"subtitle\">Total users: ").append(allUsers.size())
+				.append(" &nbsp;·&nbsp; Active (7d): ").append(activeUsers7)
+				.append(" &nbsp;·&nbsp; Active (14d): ").append(activeUsers14)
+				.append("</p>");
 		sb.append("<div class=\"grid\" style=\"max-width:1200px\">");
 
 		// Chart 1
@@ -226,6 +232,7 @@ public class WynnextrasServerApplication {
 		sb.append("</div>"); // grid
 
 		sb.append("<script>\nconst opts = (extra={}) => ({ responsive:true, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } } }, scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, ticks:{color:'#4a6080'}, grid:{color:'#1e2530'} } }, ...extra });\n");
+		sb.append("const doughnutOpts = { responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } }, tooltip:{ callbacks:{ label: function(ctx){ const total=ctx.dataset.data.reduce((a,b)=>a+b,0); const pct=total>0?((ctx.raw/total)*100).toFixed(1):'0.0'; return ' '+ctx.label+': '+ctx.raw+' ('+pct+'%)'; } } } } };\n");
 
 		// Chart 1 script
 		sb.append("new Chart(document.getElementById('c1'),{ type:'line', data:{ labels:[").append(c1l)
@@ -247,19 +254,19 @@ public class WynnextrasServerApplication {
 		sb.append("new Chart(document.getElementById('c4'),{ type:'doughnut', data:{ labels:[").append(c4l)
 				.append("], datasets:[{ data:[").append(c4d)
 				.append("], backgroundColor:[").append(c4colors)
-				.append("], borderColor:'#111419', borderWidth:2 }] }, options:{ responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } } } } });\n");
+				.append("], borderColor:'#111419', borderWidth:2 }] }, options:doughnutOpts });\n");
 
 		// Chart 4b script — active last 7 days
 		sb.append("new Chart(document.getElementById('c4b'),{ type:'doughnut', data:{ labels:[").append(c4bl)
 				.append("], datasets:[{ data:[").append(c4bd)
 				.append("], backgroundColor:[").append(c4bColors)
-				.append("], borderColor:'#111419', borderWidth:2 }] }, options:{ responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } } } } });\n");
+				.append("], borderColor:'#111419', borderWidth:2 }] }, options:doughnutOpts });\n");
 
 		// Chart 4c script — active last 14 days
 		sb.append("new Chart(document.getElementById('c4c'),{ type:'doughnut', data:{ labels:[").append(c4cl)
 				.append("], datasets:[{ data:[").append(c4cd)
 				.append("], backgroundColor:[").append(c4cColors)
-				.append("], borderColor:'#111419', borderWidth:2 }] }, options:{ responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } } } } });\n");
+				.append("], borderColor:'#111419', borderWidth:2 }] }, options:doughnutOpts });\n");
 
 		// Chart 5 script
 		String[] hourLabels = new String[24];
@@ -268,7 +275,100 @@ public class WynnextrasServerApplication {
 				.append("], datasets:[{ label:'Last-seen count', data:[").append(c5d)
 				.append("], backgroundColor:'rgba(255,69,96,0.45)', borderColor:'#ff4560', borderWidth:1 }] }, options:opts() });\n");
 
+		sb.append("""
+				// --- Guild Lookup ---
+				const RANKS = ['OWNER','CHIEF','STRATEGIST','CAPTAIN','RECRUITER','RECRUIT'];
+				let guildData = null;
+				let guildPeriod = 'all';
+
+				async function lookupGuild() {
+				  const tag = document.getElementById('guild-tag').value.trim();
+				  if (!tag) return;
+				  const btn = document.getElementById('guild-btn');
+				  const out = document.getElementById('guild-result');
+				  btn.disabled = true;
+				  out.innerHTML = '<span style="color:#4a6080">Laden...</span>';
+				  try {
+				    const r = await fetch('/admin/guild-lookup?tag=' + encodeURIComponent(tag));
+				    const data = await r.json();
+				    if (!r.ok) { out.innerHTML = '<span style="color:#ff4560">Fehler: ' + (data.error || r.status) + '</span>'; return; }
+				    guildData = data;
+				    renderGuild();
+				  } catch(e) {
+				    out.innerHTML = '<span style="color:#ff4560">Netzwerkfehler: ' + e.message + '</span>';
+				  } finally {
+				    btn.disabled = false;
+				  }
+				}
+
+				function setGuildPeriod(p) {
+				  guildPeriod = p;
+				  document.querySelectorAll('.guild-chip').forEach(c => c.classList.toggle('gchip-active', c.dataset.p === p));
+				  if (guildData) renderGuild();
+				}
+
+				function renderGuild() {
+				  const now = Date.now();
+				  const cutoff = guildPeriod === '7d' ? now - 7*86400*1000 : guildPeriod === '14d' ? now - 14*86400*1000 : 0;
+				  const members = guildData.members;
+				  const isActiveUser = m => m.isUser && (cutoff === 0 || (m.lastSeen && m.lastSeen > cutoff));
+				  const activeCount = members.filter(isActiveUser).length;
+				  const total = members.length;
+				  const pct = total > 0 ? ((activeCount / total) * 100).toFixed(1) : '0.0';
+				  const periodLabel = guildPeriod === 'all' ? 'all time' : 'last ' + guildPeriod;
+				  let html = '<div class="guild-summary">' + activeCount + ' / ' + total + ' members use WynnExtras (' + pct + '%) — ' + periodLabel + '</div>';
+				  for (const rank of RANKS) {
+				    const group = members.filter(m => m.rank === rank);
+				    if (!group.length) continue;
+				    html += '<div class="guild-rank-header">' + rank + '</div>';
+				    html += '<div class="guild-rank-group">';
+				    for (const m of group) {
+				      const active = isActiveUser(m);
+				      const dateStr = m.lastSeen ? new Date(m.lastSeen).toLocaleDateString('de-DE') : '—';
+				      html += '<div class="guild-row' + (active ? ' guild-row-user' : '') + '">';
+				      html += '<span class="guild-status">' + (active ? '✓' : (m.isUser ? '~' : '✗')) + '</span>';
+				      html += '<span class="guild-name">' + m.name + '</span>';
+				      html += '<span class="guild-ver">' + (m.modVersion || '—') + '</span>';
+				      html += '<span class="guild-date">' + dateStr + '</span>';
+				      html += '</div>';
+				    }
+				    html += '</div>';
+				  }
+				  document.getElementById('guild-result').innerHTML = html;
+				}
+
+				document.getElementById('guild-tag').addEventListener('keydown', e => { if (e.key === 'Enter') lookupGuild(); });
+				""");
 		sb.append("</script>\n");
+
+		// Guild Lookup section (between charts and user list)
+		sb.append("""
+				<div style="margin-top:32px;max-width:1200px">
+				  <div style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#4a6080;margin-bottom:12px">Guild Lookup</div>
+				  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+				    <input id="guild-tag" type="text" placeholder="Guild Tag z.B. NOVA" style="font-family:'Share Tech Mono',monospace;font-size:13px;background:#111419;border:1px solid #2a3545;border-radius:6px;padding:8px 12px;color:#c8d8e8;outline:none;width:200px" />
+				    <button id="guild-btn" onclick="lookupGuild()" style="font-family:'Share Tech Mono',monospace;font-size:12px;padding:8px 18px;border-radius:6px;border:1px solid #00c8ff;background:rgba(0,200,255,0.08);color:#00c8ff;cursor:pointer">Lookup</button>
+				    <div style="display:flex;gap:6px;margin-left:8px">
+				      <button class="guild-chip gchip-active" data-p="all" onclick="setGuildPeriod('all')" style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid #2a3545;background:transparent;color:#4a6080;cursor:pointer">All time</button>
+				      <button class="guild-chip" data-p="7d" onclick="setGuildPeriod('7d')" style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid #2a3545;background:transparent;color:#4a6080;cursor:pointer">7 Tage</button>
+				      <button class="guild-chip" data-p="14d" onclick="setGuildPeriod('14d')" style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid #2a3545;background:transparent;color:#4a6080;cursor:pointer">14 Tage</button>
+				    </div>
+				  </div>
+				  <style>
+				    .guild-chip.gchip-active { border-color:#00c8ff !important; color:#00c8ff !important; background:rgba(0,200,255,0.08) !important; }
+				    .guild-summary { font-family:'Share Tech Mono',monospace; font-size:12px; color:#00e5a0; margin-bottom:12px; }
+				    .guild-rank-header { font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:2px; color:#4a6080; padding:8px 0 4px; border-top:1px solid #1e2530; margin-top:4px; }
+				    .guild-rank-group { display:flex; flex-direction:column; gap:2px; margin-bottom:4px; }
+				    .guild-row { display:grid; grid-template-columns:24px 200px 100px 1fr; gap:8px; font-family:'Share Tech Mono',monospace; font-size:12px; color:#4a6080; padding:3px 0; }
+				    .guild-row-user { color:#c8d8e8; }
+				    .guild-status { font-weight:bold; }
+				    .guild-row-user .guild-status { color:#00e5a0; }
+				    .guild-row:not(.guild-row-user) .guild-status { color:#ff4560; }
+				    .guild-row.guild-row-inactive .guild-status { color:#ffb400; }
+				  </style>
+				  <div id="guild-result"></div>
+				</div>
+				""");
 
 		sb.append("<div class=\"user-list\">");
 		printUsers(sb, sorted);
