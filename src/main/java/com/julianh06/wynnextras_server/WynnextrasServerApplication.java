@@ -1,26 +1,38 @@
 package com.julianh06.wynnextras_server;
 
+import com.julianh06.wynnextras_server.entity.ActiveUserSnapshot;
+import com.julianh06.wynnextras_server.entity.GuildUserSnapshot;
+import com.julianh06.wynnextras_server.entity.VersionUsageSnapshot;
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
+import com.julianh06.wynnextras_server.repository.ActiveUserSnapshotRepository;
+import com.julianh06.wynnextras_server.repository.DailyUserActivityRepository;
+import com.julianh06.wynnextras_server.repository.GuildUserSnapshotRepository;
+import com.julianh06.wynnextras_server.repository.VersionUsageSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @SpringBootApplication
+@EnableScheduling
 @RestController
 public class WynnextrasServerApplication {
 	@Autowired
@@ -28,6 +40,18 @@ public class WynnextrasServerApplication {
 
 	@Autowired
 	private WynnExtrasUserRepository wynnExtrasUserRepository;
+
+	@Autowired
+	private ActiveUserSnapshotRepository activeUserSnapshotRepository;
+
+	@Autowired
+	private GuildUserSnapshotRepository guildUserSnapshotRepository;
+
+	@Autowired
+	private DailyUserActivityRepository dailyUserActivityRepository;
+
+	@Autowired
+	private VersionUsageSnapshotRepository versionUsageSnapshotRepository;
 
 	public static void main(String[] args) {
 		SpringApplication.run(WynnextrasServerApplication.class, args);
@@ -164,6 +188,109 @@ public class WynnextrasServerApplication {
 			c5d.append(hours[i]);
 		}
 
+		// ── Chart 6: Daily active-user snapshots ─────────────────────────
+		List<ActiveUserSnapshot> activeSnapshots = activeUserSnapshotRepository.findTop90ByOrderBySnapshotDateDesc();
+		Collections.reverse(activeSnapshots);
+		StringBuilder c6l = new StringBuilder(), c6d1 = new StringBuilder(), c6d3 = new StringBuilder(), c6d5 = new StringBuilder();
+		StringBuilder c6d7 = new StringBuilder(), c6d10 = new StringBuilder(), c6d14 = new StringBuilder();
+		for (ActiveUserSnapshot s : activeSnapshots) {
+			appendCsv(c6l, jsQuote(s.getSnapshotDate().toString()));
+			appendCsv(c6d1, Long.toString(s.getActive1d()));
+			appendCsv(c6d3, Long.toString(s.getActive3d()));
+			appendCsv(c6d5, Long.toString(s.getActive5d()));
+			appendCsv(c6d7, Long.toString(s.getActive7d()));
+			appendCsv(c6d10, Long.toString(s.getActive10d()));
+			appendCsv(c6d14, Long.toString(s.getActive14d()));
+		}
+
+		// ── Chart 7/8: Daily heartbeat volume + retention/churn ──────────
+		List<Object[]> heartbeatRows = dailyUserActivityRepository.findDailyHeartbeatStats();
+		StringBuilder c7l = new StringBuilder(), c7unique = new StringBuilder(), c7heartbeats = new StringBuilder();
+		StringBuilder c8l = new StringBuilder(), c8new = new StringBuilder(), c8returned = new StringBuilder(), c8d1 = new StringBuilder();
+		for (Object[] row : heartbeatRows) {
+			LocalDate day = (LocalDate) row[0];
+			long uniqueUsers = ((Number) row[1]).longValue();
+			long heartbeatCount = ((Number) row[2]).longValue();
+			appendCsv(c7l, jsQuote(day.toString()));
+			appendCsv(c7unique, Long.toString(uniqueUsers));
+			appendCsv(c7heartbeats, Long.toString(heartbeatCount));
+			appendCsv(c8l, jsQuote(day.toString()));
+			appendCsv(c8new, Long.toString(dailyUserActivityRepository.countFirstSeenOnDate(day)));
+			appendCsv(c8returned, Long.toString(dailyUserActivityRepository.countReturnedAfterGap(day, day.minusDays(7))));
+			appendCsv(c8d1, Long.toString(dailyUserActivityRepository.countCohortReturnedOnDate(day.minusDays(1), day)));
+		}
+
+		LocalDate todayUtc = LocalDate.now(ZoneOffset.UTC);
+		long newToday = dailyUserActivityRepository.countFirstSeenOnDate(todayUtc);
+		long returnedToday = dailyUserActivityRepository.countReturnedAfterGap(todayUtc, todayUtc.minusDays(7));
+		long inactive7 = allUsers.stream().filter(u -> u.getLastSeen() == null || !u.getLastSeen().isAfter(now.minus(7, java.time.temporal.ChronoUnit.DAYS))).count();
+		long inactive14 = allUsers.stream().filter(u -> u.getLastSeen() == null || !u.getLastSeen().isAfter(now.minus(14, java.time.temporal.ChronoUnit.DAYS))).count();
+		long inactive30 = allUsers.stream().filter(u -> u.getLastSeen() == null || !u.getLastSeen().isAfter(now.minus(30, java.time.temporal.ChronoUnit.DAYS))).count();
+
+		// ── Chart 9: Version adoption timeline ───────────────────────────
+		List<VersionUsageSnapshot> versionSnapshots = versionUsageSnapshotRepository.findTop1000ByOrderBySnapshotDateAscModVersionAsc();
+		Set<String> versionDates = new LinkedHashSet<>();
+		Set<String> versions = new LinkedHashSet<>();
+		Map<String, Map<String, Long>> versionCounts = new LinkedHashMap<>();
+		for (VersionUsageSnapshot s : versionSnapshots) {
+			String day = s.getSnapshotDate().toString();
+			versionDates.add(day);
+			versions.add(s.getModVersion());
+			versionCounts.computeIfAbsent(day, ignored -> new LinkedHashMap<>()).put(s.getModVersion(), s.getUserCount());
+		}
+		StringBuilder c9l = new StringBuilder(), c9datasets = new StringBuilder();
+		for (String day : versionDates) appendCsv(c9l, jsQuote(day));
+		int versionColorIndex = 0;
+		for (String version : versions) {
+			if (c9datasets.length() > 0) c9datasets.append(",");
+			StringBuilder data = new StringBuilder();
+			for (String day : versionDates) {
+				long count = versionCounts.getOrDefault(day, Map.of()).getOrDefault(version, 0L);
+				appendCsv(data, Long.toString(count));
+			}
+			c9datasets.append("{ label:").append(jsQuote(version))
+					.append(", data:[").append(data).append("], backgroundColor:")
+					.append(jsQuote(pieColors[versionColorIndex % pieColors.length]))
+					.append(", stack:'versions' }");
+			versionColorIndex++;
+		}
+
+		// ── Charts 10/11: Guild active + adoption snapshots ──────────────
+		List<GuildUserSnapshot> guildSnapshots = guildUserSnapshotRepository.findTop1000ByOrderBySnapshotDateAscGuildTagAsc();
+		Set<String> guildDates = new LinkedHashSet<>();
+		Set<String> guildTags = new LinkedHashSet<>();
+		Map<String, Map<String, GuildUserSnapshot>> guildByDateTag = new LinkedHashMap<>();
+		for (GuildUserSnapshot s : guildSnapshots) {
+			String day = s.getSnapshotDate().toString();
+			guildDates.add(day);
+			guildTags.add(s.getGuildTag());
+			guildByDateTag.computeIfAbsent(day, ignored -> new LinkedHashMap<>()).put(s.getGuildTag(), s);
+		}
+		StringBuilder c10l = new StringBuilder(), c10datasets = new StringBuilder(), c11datasets = new StringBuilder();
+		for (String day : guildDates) appendCsv(c10l, jsQuote(day));
+		int guildColorIndex = 0;
+		for (String tag : guildTags) {
+			String color = pieColors[guildColorIndex % pieColors.length].replace("0.7", "0.9");
+			StringBuilder activeData = new StringBuilder();
+			StringBuilder adoptionData = new StringBuilder();
+			for (String day : guildDates) {
+				GuildUserSnapshot s = guildByDateTag.getOrDefault(day, Map.of()).get(tag);
+				appendCsv(activeData, s == null || s.getErrorMessage() != null ? "null" : Integer.toString(s.getActive7d()));
+				if (s == null || s.getErrorMessage() != null || s.getMemberCount() == 0) {
+					appendCsv(adoptionData, "null");
+				} else {
+					double pct = (double) s.getWynnExtrasUsersTotal() * 100.0 / s.getMemberCount();
+					appendCsv(adoptionData, String.format("%.1f", pct).replace(',', '.'));
+				}
+			}
+			if (c10datasets.length() > 0) { c10datasets.append(","); c11datasets.append(","); }
+			c10datasets.append("{ label:").append(jsQuote(tag)).append(", data:[").append(activeData)
+					.append("], borderColor:").append(jsQuote(color)).append(", backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }");
+			c11datasets.append("{ label:").append(jsQuote(tag)).append(", data:[").append(adoptionData)
+					.append("], borderColor:").append(jsQuote(color)).append(", backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }");
+			guildColorIndex++;
+		}
+
 		// ── HTML ──────────────────────────────────────────────────────────
 		StringBuilder sb = new StringBuilder();
 		StringBuilder c4colors = new StringBuilder();
@@ -191,7 +318,12 @@ public class WynnextrasServerApplication {
 				  .grid-2 { grid-template-columns: 1fr 1fr; }
 				  .card { background: #111419; border: 1px solid #1e2530; border-radius: 10px; padding: 20px; }
 				  .card-title { color: #4a6080; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 16px; }
+				  .metric-grid { display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:12px; max-width:1200px; margin-bottom:20px; }
+				  .metric { background:#111419; border:1px solid #1e2530; border-radius:8px; padding:14px; }
+				  .metric-label { color:#4a6080; font-size:9px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
+				  .metric-value { color:#c8d8e8; font-size:22px; }
 				  .user-list { font-size: 12px; line-height: 1.9; margin-top: 32px; max-width: 1200px; color: #8aa0b8; }
+				  @media (max-width: 900px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 				  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
 				</style>
 				</head>
@@ -206,6 +338,13 @@ public class WynnextrasServerApplication {
 				.append(" &nbsp;·&nbsp; Active (7d): ").append(activeUsers7)
 				.append(" &nbsp;·&nbsp; Active (14d): ").append(activeUsers14)
 				.append("</p>");
+		sb.append("<div class=\"metric-grid\">");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">New today UTC</div><div class=\"metric-value\">").append(newToday).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Returned today</div><div class=\"metric-value\">").append(returnedToday).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Inactive > 7d</div><div class=\"metric-value\">").append(inactive7).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Inactive > 14d</div><div class=\"metric-value\">").append(inactive14).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Inactive > 30d</div><div class=\"metric-value\">").append(inactive30).append("</div></div>");
+		sb.append("</div>");
 		sb.append("<div class=\"grid\" style=\"max-width:1200px\">");
 
 		// Chart 1
@@ -216,6 +355,18 @@ public class WynnextrasServerApplication {
 
 		// Chart 3
 		sb.append("<div class=\"card\"><div class=\"card-title\">Daily activity (last-seen) + 7-day rolling average</div><canvas id=\"c3\" height=\"70\"></canvas></div>");
+
+		// Snapshot/activity charts
+		sb.append("<div class=\"card\"><div class=\"card-title\">Active users snapshots (daily 01:00 UTC)</div><canvas id=\"c6\" height=\"80\"></canvas></div>");
+		sb.append("<div class=\"grid grid-2\">");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Heartbeat volume per day (UTC)</div><canvas id=\"c7\" height=\"130\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">New / returned users per day (UTC)</div><canvas id=\"c8\" height=\"130\"></canvas></div>");
+		sb.append("</div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Version adoption timeline</div><canvas id=\"c9\" height=\"90\"></canvas></div>");
+		sb.append("<div class=\"grid grid-2\">");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Tracked guilds - active last 7 days</div><canvas id=\"c10\" height=\"150\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Tracked guilds - WynnExtras adoption %</div><canvas id=\"c11\" height=\"150\"></canvas></div>");
+		sb.append("</div>");
 
 		// Charts 4+5 side by side
 		sb.append("<div class=\"grid grid-2\">");
@@ -275,6 +426,46 @@ public class WynnextrasServerApplication {
 				.append("], datasets:[{ label:'Last-seen count', data:[").append(c5d)
 				.append("], backgroundColor:'rgba(255,69,96,0.45)', borderColor:'#ff4560', borderWidth:1 }] }, options:opts() });\n");
 
+		// Chart 6 script
+		sb.append("new Chart(document.getElementById('c6'),{ type:'line', data:{ labels:[").append(c6l)
+				.append("], datasets:[")
+				.append("{ label:'1d', data:[").append(c6d1).append("], borderColor:'#00c8ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 },")
+				.append("{ label:'3d', data:[").append(c6d3).append("], borderColor:'#00e5a0', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 },")
+				.append("{ label:'5d', data:[").append(c6d5).append("], borderColor:'#ffb400', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 },")
+				.append("{ label:'7d', data:[").append(c6d7).append("], borderColor:'#ff4560', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 },")
+				.append("{ label:'10d', data:[").append(c6d10).append("], borderColor:'#b464ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 },")
+				.append("{ label:'14d', data:[").append(c6d14).append("], borderColor:'#64a0ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }")
+				.append("] }, options:opts() });\n");
+
+		// Chart 7 script
+		sb.append("new Chart(document.getElementById('c7'),{ type:'bar', data:{ labels:[").append(c7l)
+				.append("], datasets:[{ label:'Unique users', data:[").append(c7unique)
+				.append("], backgroundColor:'rgba(0,200,255,0.35)', borderColor:'#00c8ff', borderWidth:1 }, { label:'Heartbeats', data:[")
+				.append(c7heartbeats)
+				.append("], type:'line', borderColor:'#00e5a0', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.25 }] }, options:opts() });\n");
+
+		// Chart 8 script
+		sb.append("new Chart(document.getElementById('c8'),{ type:'bar', data:{ labels:[").append(c8l)
+				.append("], datasets:[{ label:'New users', data:[").append(c8new)
+				.append("], backgroundColor:'rgba(0,229,160,0.38)', borderColor:'#00e5a0', borderWidth:1 }, { label:'Returned after 7d gap', data:[")
+				.append(c8returned)
+				.append("], backgroundColor:'rgba(255,180,0,0.38)', borderColor:'#ffb400', borderWidth:1 }, { label:'D1 retained', data:[")
+				.append(c8d1)
+				.append("], type:'line', borderColor:'#ff4560', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.25 }] }, options:opts() });\n");
+
+		// Chart 9 script
+		sb.append("new Chart(document.getElementById('c9'),{ type:'bar', data:{ labels:[").append(c9l)
+				.append("], datasets:[").append(c9datasets)
+				.append("] }, options:opts() });\n");
+
+		// Chart 10/11 scripts
+		sb.append("new Chart(document.getElementById('c10'),{ type:'line', data:{ labels:[").append(c10l)
+				.append("], datasets:[").append(c10datasets)
+				.append("] }, options:opts() });\n");
+		sb.append("new Chart(document.getElementById('c11'),{ type:'line', data:{ labels:[").append(c10l)
+				.append("], datasets:[").append(c11datasets)
+				.append("] }, options:opts() });\n");
+
 		sb.append("""
 				// --- Guild Lookup ---
 				const RANKS = ['OWNER','CHIEF','STRATEGIST','CAPTAIN','RECRUITER','RECRUIT'];
@@ -287,15 +478,15 @@ public class WynnextrasServerApplication {
 				  const btn = document.getElementById('guild-btn');
 				  const out = document.getElementById('guild-result');
 				  btn.disabled = true;
-				  out.innerHTML = '<span style="color:#4a6080">Laden...</span>';
+				  out.innerHTML = '<span style="color:#4a6080">Loading...</span>';
 				  try {
 				    const r = await fetch('/admin/guild-lookup?tag=' + encodeURIComponent(tag));
 				    const data = await r.json();
-				    if (!r.ok) { out.innerHTML = '<span style="color:#ff4560">Fehler: ' + (data.error || r.status) + '</span>'; return; }
+				    if (!r.ok) { out.innerHTML = '<span style="color:#ff4560">Error: ' + (data.error || r.status) + '</span>'; return; }
 				    guildData = data;
 				    renderGuild();
 				  } catch(e) {
-				    out.innerHTML = '<span style="color:#ff4560">Netzwerkfehler: ' + e.message + '</span>';
+				    out.innerHTML = '<span style="color:#ff4560">Network error: ' + e.message + '</span>';
 				  } finally {
 				    btn.disabled = false;
 				  }
@@ -324,7 +515,7 @@ public class WynnextrasServerApplication {
 				    html += '<div class="guild-rank-group">';
 				    for (const m of group) {
 				      const active = isActiveUser(m);
-				      const dateStr = m.lastSeen ? new Date(m.lastSeen).toLocaleDateString('de-DE') : '—';
+				      const dateStr = m.lastSeen ? new Date(m.lastSeen).toLocaleDateString('en-US') : '—';
 				      html += '<div class="guild-row' + (active ? ' guild-row-user' : '') + '">';
 				      html += '<span class="guild-status">' + (active ? '✓' : (m.isUser ? '~' : '✗')) + '</span>';
 				      html += '<span class="guild-name">' + m.name + '</span>';
@@ -346,12 +537,12 @@ public class WynnextrasServerApplication {
 				<div style="margin-top:32px;max-width:1200px">
 				  <div style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#4a6080;margin-bottom:12px">Guild Lookup</div>
 				  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-				    <input id="guild-tag" type="text" placeholder="Guild Tag z.B. NOVA" style="font-family:'Share Tech Mono',monospace;font-size:13px;background:#111419;border:1px solid #2a3545;border-radius:6px;padding:8px 12px;color:#c8d8e8;outline:none;width:200px" />
+				    <input id="guild-tag" type="text" placeholder="Guild tag e.g. SEQ" style="font-family:'Share Tech Mono',monospace;font-size:13px;background:#111419;border:1px solid #2a3545;border-radius:6px;padding:8px 12px;color:#c8d8e8;outline:none;width:200px" />
 				    <button id="guild-btn" onclick="lookupGuild()" style="font-family:'Share Tech Mono',monospace;font-size:12px;padding:8px 18px;border-radius:6px;border:1px solid #00c8ff;background:rgba(0,200,255,0.08);color:#00c8ff;cursor:pointer">Lookup</button>
 				    <div style="display:flex;gap:6px;margin-left:8px">
 				      <button class="guild-chip gchip-active" data-p="all" onclick="setGuildPeriod('all')" style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid #2a3545;background:transparent;color:#4a6080;cursor:pointer">All time</button>
-				      <button class="guild-chip" data-p="7d" onclick="setGuildPeriod('7d')" style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid #2a3545;background:transparent;color:#4a6080;cursor:pointer">7 Tage</button>
-				      <button class="guild-chip" data-p="14d" onclick="setGuildPeriod('14d')" style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid #2a3545;background:transparent;color:#4a6080;cursor:pointer">14 Tage</button>
+				      <button class="guild-chip" data-p="7d" onclick="setGuildPeriod('7d')" style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid #2a3545;background:transparent;color:#4a6080;cursor:pointer">7 days</button>
+				      <button class="guild-chip" data-p="14d" onclick="setGuildPeriod('14d')" style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:4px 10px;border-radius:4px;border:1px solid #2a3545;background:transparent;color:#4a6080;cursor:pointer">14 days</button>
 				    </div>
 				  </div>
 				  <style>
@@ -400,6 +591,20 @@ public class WynnextrasServerApplication {
 					.append(u.getModVersion())
 					.append("<br>");
 		}
+	}
+
+	private static void appendCsv(StringBuilder sb, String value) {
+		if (sb.length() > 0) sb.append(",");
+		sb.append(value);
+	}
+
+	private static String jsQuote(String value) {
+		if (value == null) return "null";
+		return "\"" + value
+				.replace("\\", "\\\\")
+				.replace("\"", "\\\"")
+				.replace("\n", "\\n")
+				.replace("\r", "\\r") + "\"";
 	}
 
 	@GetMapping("/admin/panel")

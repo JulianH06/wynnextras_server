@@ -1,8 +1,11 @@
 package com.julianh06.wynnextras_server.controller;
 
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
+import com.julianh06.wynnextras_server.entity.DailyUserActivity;
+import com.julianh06.wynnextras_server.repository.DailyUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
 import com.julianh06.wynnextras_server.service.AuthService;
+import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +37,9 @@ public class WynnExtrasUserController {
     @Autowired
     private WynnExtrasUserRepository userRepository;
 
+    @Autowired
+    private DailyUserActivityRepository dailyUserActivityRepository;
+
     /**
      * Client heartbeat - registers or updates user activity
      * POST /wynnextras-users/heartbeat
@@ -42,6 +50,7 @@ public class WynnExtrasUserController {
      * Called on game launch and periodically (every 600 seconds)
      */
     @PostMapping("/heartbeat")
+    @Transactional
     public ResponseEntity<?> heartbeat(
             @RequestBody HeartbeatRequest request,
             @RequestHeader(value = "Authorization", required = false) String token) {
@@ -62,6 +71,7 @@ public class WynnExtrasUserController {
         String verifiedUuid = session.uuid;
         String verifiedUsername = session.username;
         String modVersion = request.getModVersion().trim();
+        Instant heartbeatAt = Instant.now();
 
         try {
             // Find existing user or create new one
@@ -72,15 +82,19 @@ public class WynnExtrasUserController {
                 WynnExtrasUser user = existingUser.get();
                 user.setUsername(verifiedUsername); // Update username in case it changed
                 user.setModVersion(modVersion);
-                user.setLastSeen(Instant.now());
+                user.setLastSeen(heartbeatAt);
                 userRepository.save(user);
                 logger.debug("Updated heartbeat for user {} ({})", verifiedUsername, verifiedUuid);
             } else {
                 // Create new user
                 WynnExtrasUser user = new WynnExtrasUser(verifiedUuid, verifiedUsername, modVersion);
+                user.setLastSeen(heartbeatAt);
+                user.setCreatedAt(heartbeatAt);
                 userRepository.save(user);
                 logger.info("Registered new WynnExtras user: {} ({})", verifiedUsername, verifiedUuid);
             }
+
+            recordDailyActivity(verifiedUuid, verifiedUsername, modVersion, heartbeatAt);
 
             return ResponseEntity.ok(Map.of(
                 "status", "success",
@@ -91,6 +105,19 @@ public class WynnExtrasUserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("status", "error", "message", "Error processing heartbeat"));
         }
+    }
+
+    private void recordDailyActivity(String uuid, String username, String modVersion, Instant heartbeatAt) {
+        LocalDate activityDate = LocalDate.ofInstant(heartbeatAt, ZoneOffset.UTC);
+        DailyUserActivity activity = dailyUserActivityRepository
+                .findByActivityDateAndUserUuid(activityDate, uuid)
+                .orElseGet(() -> new DailyUserActivity(activityDate, uuid, username, modVersion, heartbeatAt));
+
+        if (activity.getId() != null) {
+            activity.recordHeartbeat(username, modVersion, heartbeatAt);
+        }
+
+        dailyUserActivityRepository.save(activity);
     }
 
     /**
