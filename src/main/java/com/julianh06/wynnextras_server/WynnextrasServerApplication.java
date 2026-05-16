@@ -78,13 +78,14 @@ public class WynnextrasServerApplication {
 			if (u.getCreatedAt() == null) continue;
 			createdPerDay.merge(dayFmt.format(u.getCreatedAt()), 1, Integer::sum);
 		}
-		StringBuilder c1l = new StringBuilder(), c1d = new StringBuilder();
+		StringBuilder c1l = new StringBuilder(), c1d = new StringBuilder(), c1s = new StringBuilder();
 		int cum = 0;
 		for (Map.Entry<String, Integer> e : createdPerDay.entrySet()) {
 			cum += e.getValue();
-			if (c1l.length() > 0) { c1l.append(","); c1d.append(","); }
+			if (c1l.length() > 0) { c1l.append(","); c1d.append(","); c1s.append(","); }
 			c1l.append('"').append(e.getKey()).append('"');
 			c1d.append(cum);
+			c1s.append(e.getValue());
 		}
 
 		// ── Chart 2: New users per week ───────────────────────────────────
@@ -349,6 +350,7 @@ public class WynnextrasServerApplication {
 
 		// Chart 1
 		sb.append("<div class=\"card\"><div class=\"card-title\">Cumulative unique users</div><canvas id=\"c1\" height=\"70\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Cumulative unique users slope (new users/day)</div><canvas id=\"c1s\" height=\"70\"></canvas></div>");
 
 		// Chart 2
 		sb.append("<div class=\"card\"><div class=\"card-title\">New users per week</div><canvas id=\"c2\" height=\"70\"></canvas></div>");
@@ -389,6 +391,9 @@ public class WynnextrasServerApplication {
 		sb.append("new Chart(document.getElementById('c1'),{ type:'line', data:{ labels:[").append(c1l)
 				.append("], datasets:[{ label:'Total', data:[").append(c1d)
 				.append("], borderColor:'#00c8ff', backgroundColor:'rgba(0,200,255,0.08)', borderWidth:2, pointRadius:1, fill:true, tension:0.3 }] }, options:opts() });\n");
+		sb.append("new Chart(document.getElementById('c1s'),{ type:'bar', data:{ labels:[").append(c1l)
+				.append("], datasets:[{ label:'New users/day', data:[").append(c1s)
+				.append("], backgroundColor:'rgba(255,180,0,0.38)', borderColor:'#ffb400', borderWidth:1 }] }, options:opts() });\n");
 
 		// Chart 2 script
 		sb.append("new Chart(document.getElementById('c2'),{ type:'bar', data:{ labels:[").append(c2l)
