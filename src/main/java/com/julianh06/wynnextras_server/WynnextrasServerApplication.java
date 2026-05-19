@@ -232,27 +232,35 @@ public class WynnextrasServerApplication {
 		List<VersionUsageSnapshot> versionSnapshots = versionUsageSnapshotRepository.findTop1000ByOrderBySnapshotDateAscModVersionAsc();
 		Set<String> versionDates = new LinkedHashSet<>();
 		Set<String> versions = new LinkedHashSet<>();
-		Map<String, Map<String, Long>> versionCounts = new LinkedHashMap<>();
+		Map<String, Map<String, VersionUsageSnapshot>> versionByDateVersion = new LinkedHashMap<>();
 		for (VersionUsageSnapshot s : versionSnapshots) {
 			String day = s.getSnapshotDate().toString();
 			versionDates.add(day);
 			versions.add(s.getModVersion());
-			versionCounts.computeIfAbsent(day, ignored -> new LinkedHashMap<>()).put(s.getModVersion(), s.getUserCount());
+			versionByDateVersion.computeIfAbsent(day, ignored -> new LinkedHashMap<>()).put(s.getModVersion(), s);
 		}
-		StringBuilder c9l = new StringBuilder(), c9datasets = new StringBuilder();
+		StringBuilder c9l = new StringBuilder();
+		StringBuilder c9AllDatasets = new StringBuilder(), c9Active1dDatasets = new StringBuilder(), c9Active3dDatasets = new StringBuilder();
+		StringBuilder c9Active7dDatasets = new StringBuilder(), c9Active14dDatasets = new StringBuilder();
 		for (String day : versionDates) appendCsv(c9l, jsQuote(day));
 		int versionColorIndex = 0;
 		for (String version : versions) {
-			if (c9datasets.length() > 0) c9datasets.append(",");
-			StringBuilder data = new StringBuilder();
+			String color = pieColors[versionColorIndex % pieColors.length];
+			StringBuilder allData = new StringBuilder(), active1dData = new StringBuilder(), active3dData = new StringBuilder();
+			StringBuilder active7dData = new StringBuilder(), active14dData = new StringBuilder();
 			for (String day : versionDates) {
-				long count = versionCounts.getOrDefault(day, Map.of()).getOrDefault(version, 0L);
-				appendCsv(data, Long.toString(count));
+				VersionUsageSnapshot s = versionByDateVersion.getOrDefault(day, Map.of()).get(version);
+				appendCsv(allData, Long.toString(s == null ? 0L : s.getUserCount()));
+				appendCsv(active1dData, Long.toString(s == null ? 0L : s.getActive1dCount()));
+				appendCsv(active3dData, Long.toString(s == null ? 0L : s.getActive3dCount()));
+				appendCsv(active7dData, Long.toString(s == null ? 0L : s.getActive7dCount()));
+				appendCsv(active14dData, Long.toString(s == null ? 0L : s.getActive14dCount()));
 			}
-			c9datasets.append("{ label:").append(jsQuote(version))
-					.append(", data:[").append(data).append("], backgroundColor:")
-					.append(jsQuote(pieColors[versionColorIndex % pieColors.length]))
-					.append(", stack:'versions' }");
+			appendTimelineDataset(c9AllDatasets, version, allData, color);
+			appendTimelineDataset(c9Active1dDatasets, version, active1dData, color);
+			appendTimelineDataset(c9Active3dDatasets, version, active3dData, color);
+			appendTimelineDataset(c9Active7dDatasets, version, active7dData, color);
+			appendTimelineDataset(c9Active14dDatasets, version, active14dData, color);
 			versionColorIndex++;
 		}
 
@@ -319,13 +327,18 @@ public class WynnextrasServerApplication {
 				  .grid-2 { grid-template-columns: 1fr 1fr; }
 				  .card { background: #111419; border: 1px solid #1e2530; border-radius: 10px; padding: 20px; }
 				  .card-title { color: #4a6080; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 16px; }
+				  .card-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+				  .card-header .card-title { margin-bottom:0; }
+				  .timeline-controls { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
+				  .timeline-chip { font-family:'Share Tech Mono',monospace; font-size:10px; padding:5px 9px; border-radius:4px; border:1px solid #2a3545; background:transparent; color:#4a6080; cursor:pointer; white-space:nowrap; }
+				  .timeline-chip.tchip-active { border-color:#00c8ff; color:#00c8ff; background:rgba(0,200,255,0.08); }
 				  .metric-grid { display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:12px; max-width:1200px; margin-bottom:20px; }
 				  .metric { background:#111419; border:1px solid #1e2530; border-radius:8px; padding:14px; }
 				  .metric-label { color:#4a6080; font-size:9px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
 				  .metric-value { color:#c8d8e8; font-size:22px; }
 				  .user-list { font-size: 12px; line-height: 1.9; margin-top: 32px; max-width: 1200px; color: #8aa0b8; }
 				  @media (max-width: 900px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-				  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+				  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } .card-header { align-items:flex-start; flex-direction:column; } .timeline-controls { justify-content:flex-start; } }
 				</style>
 				</head>
 				<body>
@@ -364,7 +377,21 @@ public class WynnextrasServerApplication {
 		sb.append("<div class=\"card\"><div class=\"card-title\">Heartbeat volume per day (UTC)</div><canvas id=\"c7\" height=\"130\"></canvas></div>");
 		sb.append("<div class=\"card\"><div class=\"card-title\">New / returned users per day (UTC)</div><canvas id=\"c8\" height=\"130\"></canvas></div>");
 		sb.append("</div>");
-		sb.append("<div class=\"card\"><div class=\"card-title\">Version adoption timeline</div><canvas id=\"c9\" height=\"90\"></canvas></div>");
+		sb.append("""
+				<div class="card">
+				  <div class="card-header">
+				    <div class="card-title">Version adoption timeline</div>
+				    <div class="timeline-controls">
+				      <button class="timeline-chip tchip-active" data-p="all" onclick="setVersionTimelinePeriod('all')">Alltime</button>
+				      <button class="timeline-chip" data-p="active1d" onclick="setVersionTimelinePeriod('active1d')">Active 1D</button>
+				      <button class="timeline-chip" data-p="active3d" onclick="setVersionTimelinePeriod('active3d')">Active 3D</button>
+				      <button class="timeline-chip" data-p="active7d" onclick="setVersionTimelinePeriod('active7d')">Active 7D</button>
+				      <button class="timeline-chip" data-p="active14d" onclick="setVersionTimelinePeriod('active14d')">Active 14D</button>
+				    </div>
+				  </div>
+				  <canvas id="c9" height="90"></canvas>
+				</div>
+				""");
 		sb.append("<div class=\"grid grid-2\">");
 		sb.append("<div class=\"card\"><div class=\"card-title\">Tracked guilds - active last 7 days</div><canvas id=\"c10\" height=\"150\"></canvas></div>");
 		sb.append("<div class=\"card\"><div class=\"card-title\">Tracked guilds - WynnExtras adoption %</div><canvas id=\"c11\" height=\"150\"></canvas></div>");
@@ -459,9 +486,19 @@ public class WynnextrasServerApplication {
 				.append("], type:'line', borderColor:'#ff4560', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.25 }] }, options:opts() });\n");
 
 		// Chart 9 script
-		sb.append("new Chart(document.getElementById('c9'),{ type:'bar', data:{ labels:[").append(c9l)
-				.append("], datasets:[").append(c9datasets)
-				.append("] }, options:opts() });\n");
+		sb.append("const versionTimelineData = {")
+				.append("all:{ labels:[").append(c9l).append("], datasets:[").append(c9AllDatasets).append("] },")
+				.append("active1d:{ labels:[").append(c9l).append("], datasets:[").append(c9Active1dDatasets).append("] },")
+				.append("active3d:{ labels:[").append(c9l).append("], datasets:[").append(c9Active3dDatasets).append("] },")
+				.append("active7d:{ labels:[").append(c9l).append("], datasets:[").append(c9Active7dDatasets).append("] },")
+				.append("active14d:{ labels:[").append(c9l).append("], datasets:[").append(c9Active14dDatasets).append("] }")
+				.append("};\n")
+				.append("const versionTimelineOptions = opts();\n")
+				.append("versionTimelineOptions.scales.x.stacked = true;\n")
+				.append("versionTimelineOptions.scales.y.stacked = true;\n")
+				.append("const copyVersionTimelineData = p => ({ labels:[...versionTimelineData[p].labels], datasets:versionTimelineData[p].datasets.map(d => ({...d, data:[...d.data]})) });\n")
+				.append("const versionTimelineChart = new Chart(document.getElementById('c9'),{ type:'bar', data:copyVersionTimelineData('all'), options:versionTimelineOptions });\n")
+				.append("function setVersionTimelinePeriod(p) { versionTimelineChart.data = copyVersionTimelineData(p); document.querySelectorAll('.timeline-chip').forEach(c => c.classList.toggle('tchip-active', c.dataset.p === p)); versionTimelineChart.update(); }\n");
 
 		// Chart 10/11 scripts
 		sb.append("new Chart(document.getElementById('c10'),{ type:'line', data:{ labels:[").append(c10l)
@@ -601,6 +638,15 @@ public class WynnextrasServerApplication {
 	private static void appendCsv(StringBuilder sb, String value) {
 		if (sb.length() > 0) sb.append(",");
 		sb.append(value);
+	}
+
+	private static void appendTimelineDataset(StringBuilder sb, String label, StringBuilder data, String color) {
+		if (sb.length() > 0) sb.append(",");
+		sb.append("{ label:").append(jsQuote(label))
+				.append(", data:[").append(data)
+				.append("], backgroundColor:").append(jsQuote(color))
+				.append(", borderColor:").append(jsQuote(color))
+				.append(", borderWidth:0, barPercentage:1.0, categoryPercentage:1.0, stack:'versions' }");
 	}
 
 	private static String jsQuote(String value) {

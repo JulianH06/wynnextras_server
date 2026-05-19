@@ -25,6 +25,10 @@ public class VersionUsageSnapshot {
     @Column(nullable = false)
     private long userCount;
 
+    private Long active1dCount = 0L;
+
+    private Long active3dCount = 0L;
+
     @Column(nullable = false)
     private long active7dCount;
 
@@ -53,6 +57,12 @@ public class VersionUsageSnapshot {
 
     public long getUserCount() { return userCount; }
     public void setUserCount(long userCount) { this.userCount = userCount; }
+
+    public long getActive1dCount() { return active1dCount == null ? 0L : active1dCount; }
+    public void setActive1dCount(long active1dCount) { this.active1dCount = active1dCount; }
+
+    public long getActive3dCount() { return active3dCount == null ? 0L : active3dCount; }
+    public void setActive3dCount(long active3dCount) { this.active3dCount = active3dCount; }
 
     public long getActive7dCount() { return active7dCount; }
     public void setActive7dCount(long active7dCount) { this.active7dCount = active7dCount; }

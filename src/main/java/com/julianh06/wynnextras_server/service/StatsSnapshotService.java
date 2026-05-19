@@ -69,6 +69,8 @@ public class StatsSnapshotService {
     }
 
     private void captureVersionUsageSnapshots(LocalDate snapshotDate, Instant snapshotInstant) {
+        Instant cutoff1 = snapshotInstant.minus(1, ChronoUnit.DAYS);
+        Instant cutoff3 = snapshotInstant.minus(3, ChronoUnit.DAYS);
         Instant cutoff7 = snapshotInstant.minus(7, ChronoUnit.DAYS);
         Instant cutoff14 = snapshotInstant.minus(14, ChronoUnit.DAYS);
         Map<String, VersionCounts> countsByVersion = new HashMap<>();
@@ -80,6 +82,12 @@ public class StatsSnapshotService {
             }
             VersionCounts counts = countsByVersion.computeIfAbsent(version, ignored -> new VersionCounts());
             counts.total++;
+            if (user.getLastSeen() != null && user.getLastSeen().isAfter(cutoff1)) {
+                counts.active1++;
+            }
+            if (user.getLastSeen() != null && user.getLastSeen().isAfter(cutoff3)) {
+                counts.active3++;
+            }
             if (user.getLastSeen() != null && user.getLastSeen().isAfter(cutoff7)) {
                 counts.active7++;
             }
@@ -95,6 +103,8 @@ public class StatsSnapshotService {
             VersionCounts counts = entry.getValue();
             snapshot.setCapturedAt(snapshotInstant);
             snapshot.setUserCount(counts.total);
+            snapshot.setActive1dCount(counts.active1);
+            snapshot.setActive3dCount(counts.active3);
             snapshot.setActive7dCount(counts.active7);
             snapshot.setActive14dCount(counts.active14);
             versionUsageSnapshotRepository.save(snapshot);
@@ -136,6 +146,8 @@ public class StatsSnapshotService {
 
     private static class VersionCounts {
         long total;
+        long active1;
+        long active3;
         long active7;
         long active14;
     }
