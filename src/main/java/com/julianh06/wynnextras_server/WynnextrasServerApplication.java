@@ -1343,8 +1343,9 @@ public class WynnextrasServerApplication {
 				  }
 				
 				  function runConfirmed() {
+				    const action = pendingAction;
 				    closeModal();
-				    if (pendingAction) pendingAction();
+				    if (action) action();
 				  }
 				
 				  // Close on overlay click
