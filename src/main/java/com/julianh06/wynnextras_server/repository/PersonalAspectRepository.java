@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +19,23 @@ public interface PersonalAspectRepository extends JpaRepository<PersonalAspect, 
     @Modifying
     @Query("DELETE FROM PersonalAspect p WHERE p.aspectName = :name")
     int deleteByAspectName(@Param("name") String name);
+
+    @Query("""
+        SELECT p.aspectName AS aspectName, COUNT(p) AS entryCount
+        FROM PersonalAspect p
+        GROUP BY p.aspectName
+        ORDER BY p.aspectName
+        """)
+    List<AspectNameCount> findAspectNameCounts();
+
+    @Modifying
+    @Query("DELETE FROM PersonalAspect p WHERE p.aspectName NOT IN (:currentNames)")
+    int deleteByAspectNameNotIn(@Param("currentNames") Collection<String> currentNames);
+
+    interface AspectNameCount {
+        String getAspectName();
+        long getEntryCount();
+    }
 
     /**
      * Get leaderboard of players with most max aspects

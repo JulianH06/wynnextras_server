@@ -367,6 +367,51 @@
     color: var(--muted);
   }
 
+  .stale-preview {
+    margin-top: 14px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .stale-preview.empty {
+    color: var(--success);
+    border-color: rgba(0,229,160,0.35);
+    background: var(--success-dim);
+  }
+
+  .stale-summary {
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+
+  .stale-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 220px;
+    overflow: auto;
+  }
+
+  .stale-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+  }
+
+  .stale-count {
+    color: var(--warn);
+    white-space: nowrap;
+  }
+
   /* Raid chips */
   .chip-group {
     display: flex;
@@ -505,6 +550,20 @@
     </div>
 
     <div class="card">
+      <div class="card-title">Stale Aspects aus Wynn API wipen</div>
+      <div class="card-desc">
+        Holt die aktuellen Aspect-Namen aus Wynncraft und zeigt alle DB-Namen, die dort nicht mehr existieren. Gelöscht wird erst nach Preview und Bestätigung.
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-accent" id="stale-preview-btn" onclick="previewStaleAspects()">Preview laden</button>
+        <button class="btn btn-danger" id="stale-delete-btn" onclick="deleteStaleAspects()" disabled>Stale Aspects löschen</button>
+      </div>
+      <div id="stale-aspect-preview" class="stale-preview">
+        Noch keine Preview geladen.
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Umbenannte Aspects wipen (bekannte)</div>
       <div class="card-desc">
         Diese Aspects wurden in Wynn umbenannt — die alten Namen werden bei allen Usern gelöscht.
@@ -581,6 +640,7 @@
   let selectedRaid = null;
   let selectedLootrun = null;
   let pendingAction = null;
+  let stalePreview = null;
 
   // --- Chip selection ---
   document.querySelectorAll('#raid-chips .chip').forEach(c => {
@@ -689,6 +749,108 @@
       `Aspect <code>${name}</code> bei <strong>allen Usern</strong> löschen?`,
       () => doWipe('/admin/aspects', `Aspect gewiped: ${name}`, { aspectName: name })
     );
+  }
+
+  async function previewStaleAspects() {
+    const previewBtn = document.getElementById('stale-preview-btn');
+    const deleteBtn = document.getElementById('stale-delete-btn');
+    previewBtn.disabled = true;
+    previewBtn.innerHTML = '<span class="spin"></span> Lade...';
+    deleteBtn.disabled = true;
+    stalePreview = null;
+    toast('Preview läuft...', 'inf');
+
+    try {
+      const r = await api('GET', '/admin/aspects/stale-preview');
+      if (!r.ok) {
+        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+        return;
+      }
+
+      const data = JSON.parse(r.text);
+      stalePreview = data;
+      renderStaleAspectPreview(data);
+      deleteBtn.disabled = data.staleAspectCount === 0;
+      toast(`✓ Preview: ${data.staleAspectCount} alte Namen, ${data.totalStaleRows} Einträge`, 'ok');
+    } catch (e) {
+      toast('✗ ' + e.message, 'err');
+    } finally {
+      previewBtn.disabled = false;
+      previewBtn.textContent = 'Preview laden';
+    }
+  }
+
+  function deleteStaleAspects() {
+    if (!stalePreview || stalePreview.staleAspectCount === 0) {
+      toast('Erst Preview mit alten Aspects laden', 'err');
+      return;
+    }
+
+    confirm(
+      `${stalePreview.staleAspectCount} alte Aspect-Namen mit insgesamt <strong>${stalePreview.totalStaleRows}</strong> DB-Einträgen löschen?<br><br>Die aktuelle Wynncraft-Liste wird vor dem Löschen erneut geladen.`,
+      async () => {
+        const deleteBtn = document.getElementById('stale-delete-btn');
+        deleteBtn.disabled = true;
+        toast('Stale-Wipe läuft...', 'inf');
+
+        try {
+          const r = await api('DELETE', '/admin/aspects/stale', { confirm: 'true' });
+          if (r.ok) {
+            const data = JSON.parse(r.text);
+            stalePreview = {
+              ...data,
+              staleAspectCount: 0,
+              totalStaleRows: 0,
+              staleAspects: []
+            };
+            renderStaleAspectPreview(stalePreview);
+            toast(`✓ Stale Aspects gewiped: ${data.deleted} Einträge`, 'ok');
+          } else {
+            toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+          }
+        } catch (e) {
+          toast('✗ ' + e.message, 'err');
+        }
+      }
+    );
+  }
+
+  function renderStaleAspectPreview(data) {
+    const el = document.getElementById('stale-aspect-preview');
+    const rows = data.staleAspects || [];
+    el.classList.toggle('empty', rows.length === 0);
+
+    if (rows.length === 0) {
+      el.innerHTML = `Keine stale Aspects gefunden. Aktuelle Wynncraft-Namen: ${data.currentAspectCount || 0}.`;
+      return;
+    }
+
+    const visibleRows = rows.slice(0, 100);
+    const overflow = rows.length > visibleRows.length
+      ? `<div class="stale-row"><span>... ${rows.length - visibleRows.length} weitere</span><span class="stale-count"></span></div>`
+      : '';
+
+    el.innerHTML = `
+      <div class="stale-summary">${data.staleAspectCount} alte Namen, ${data.totalStaleRows} DB-Einträge. Aktuelle Wynncraft-Namen: ${data.currentAspectCount}.</div>
+      <div class="stale-list">
+        ${visibleRows.map(row => `
+          <div class="stale-row">
+            <span>${escapeHtml(row.aspectName)}</span>
+            <span class="stale-count">${row.entryCount}x</span>
+          </div>
+        `).join('')}
+        ${overflow}
+      </div>
+    `;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   function wipeCustomAspect() {

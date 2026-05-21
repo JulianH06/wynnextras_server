@@ -1,5 +1,6 @@
 package com.julianh06.wynnextras_server.controller;
 
+import com.julianh06.wynnextras_server.WynncraftService;
 import com.julianh06.wynnextras_server.repository.*;
 import com.julianh06.wynnextras_server.service.GuildStatsService;
 import com.julianh06.wynnextras_server.service.VerifiedUserLoader;
@@ -10,8 +11,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Admin endpoints for server management
@@ -28,6 +32,7 @@ public class AdminController {
     @Autowired private LootrunLootPoolSubmissionRepository lootrunSubmissionRepo;
     @Autowired private PersonalAspectRepository personalAspectRepo;
     @Autowired private GuildStatsService guildStatsService;
+    @Autowired private WynncraftService wynncraftService;
 
     /**
      * Reload verified users from file
@@ -154,6 +159,52 @@ public class AdminController {
         ));
     }
 
+    @GetMapping("/aspects/stale-preview")
+    public ResponseEntity<?> previewStaleAspects() {
+        try {
+            return ResponseEntity.ok(buildStaleAspectPreview(wynncraftService.fetchCurrentAspectNames()));
+
+        } catch (Exception e) {
+            logger.error("Error previewing stale aspects", e);
+            return ResponseEntity.status(502).body(Map.of(
+                    "status", "error",
+                    "message", "Failed to fetch current Wynncraft aspects: " + e.getMessage()
+            ));
+        }
+    }
+
+    @DeleteMapping("/aspects/stale")
+    @Transactional
+    public ResponseEntity<?> wipeStaleAspects(@RequestParam(defaultValue = "false") boolean confirm) {
+        if (!confirm) {
+            return ResponseEntity.badRequest().body("confirm=true erforderlich");
+        }
+
+        try {
+            Set<String> currentAspectNames = wynncraftService.fetchCurrentAspectNames();
+            Map<String, Object> preview = buildStaleAspectPreview(currentAspectNames);
+            int deleted = personalAspectRepo.deleteByAspectNameNotIn(currentAspectNames);
+
+            logger.info("Admin wiped stale aspects: {} entries deleted", deleted);
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Stale Aspects gewiped",
+                    "currentAspectCount", preview.get("currentAspectCount"),
+                    "staleAspectCount", preview.get("staleAspectCount"),
+                    "expectedDeleted", preview.get("totalStaleRows"),
+                    "deleted", deleted,
+                    "staleAspects", preview.get("staleAspects")
+            ));
+
+        } catch (Exception e) {
+            logger.error("Error wiping stale aspects", e);
+            return ResponseEntity.status(502).body(Map.of(
+                    "status", "error",
+                    "message", "Failed to fetch current Wynncraft aspects: " + e.getMessage()
+            ));
+        }
+    }
+
     @DeleteMapping("/aspects/player")
     @Transactional
     public ResponseEntity<?> wipePlayerAspects(@RequestParam String playerUuid) {
@@ -167,6 +218,33 @@ public class AdminController {
                 "status", "success",
                 "message", "Alle Aspects gewiped für UUID: " + normalized
         ));
+    }
+
+    private Map<String, Object> buildStaleAspectPreview(Set<String> currentAspectNames) {
+        if (currentAspectNames == null || currentAspectNames.isEmpty()) {
+            throw new IllegalStateException("Current aspect list is empty");
+        }
+
+        List<Map<String, Object>> staleAspects = new ArrayList<>();
+        long totalStaleRows = 0;
+
+        for (PersonalAspectRepository.AspectNameCount aspect : personalAspectRepo.findAspectNameCounts()) {
+            if (!currentAspectNames.contains(aspect.getAspectName())) {
+                staleAspects.add(Map.of(
+                        "aspectName", aspect.getAspectName(),
+                        "entryCount", aspect.getEntryCount()
+                ));
+                totalStaleRows += aspect.getEntryCount();
+            }
+        }
+
+        return Map.of(
+                "status", "success",
+                "currentAspectCount", currentAspectNames.size(),
+                "staleAspectCount", staleAspects.size(),
+                "totalStaleRows", totalStaleRows,
+                "staleAspects", staleAspects
+        );
     }
 
     @GetMapping("/guild-lookup")
