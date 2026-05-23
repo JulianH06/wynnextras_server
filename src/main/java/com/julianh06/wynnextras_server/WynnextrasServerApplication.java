@@ -332,13 +332,16 @@ public class WynnextrasServerApplication {
 				  .timeline-controls { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
 				  .timeline-chip { font-family:'Share Tech Mono',monospace; font-size:10px; padding:5px 9px; border-radius:4px; border:1px solid #2a3545; background:transparent; color:#4a6080; cursor:pointer; white-space:nowrap; }
 				  .timeline-chip.tchip-active { border-color:#00c8ff; color:#00c8ff; background:rgba(0,200,255,0.08); }
+				  .guild-chart-controls { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
+				  .guild-chart-chip { font-family:'Share Tech Mono',monospace; font-size:10px; padding:5px 9px; border-radius:4px; border:1px solid #2a3545; background:transparent; color:#4a6080; cursor:pointer; white-space:nowrap; }
+				  .guild-chart-chip.gchip-active { border-color:#00c8ff; color:#00c8ff; background:rgba(0,200,255,0.08); }
 				  .metric-grid { display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:12px; max-width:1200px; margin-bottom:20px; }
 				  .metric { background:#111419; border:1px solid #1e2530; border-radius:8px; padding:14px; }
 				  .metric-label { color:#4a6080; font-size:9px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
 				  .metric-value { color:#c8d8e8; font-size:22px; }
 				  .user-list { font-size: 12px; line-height: 1.9; margin-top: 32px; max-width: 1200px; color: #8aa0b8; }
 				  @media (max-width: 900px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-				  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } .card-header { align-items:flex-start; flex-direction:column; } .timeline-controls { justify-content:flex-start; } }
+				  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } .card-header { align-items:flex-start; flex-direction:column; } .timeline-controls, .guild-chart-controls { justify-content:flex-start; } }
 				</style>
 				</head>
 				<body>
@@ -392,10 +395,18 @@ public class WynnextrasServerApplication {
 				  <canvas id="c9" height="90"></canvas>
 				</div>
 				""");
-		sb.append("<div class=\"grid grid-2\">");
-		sb.append("<div class=\"card\"><div class=\"card-title\">Tracked guilds - active last 7 days</div><canvas id=\"c10\" height=\"150\"></canvas></div>");
-		sb.append("<div class=\"card\"><div class=\"card-title\">Tracked guilds - WynnExtras adoption %</div><canvas id=\"c11\" height=\"150\"></canvas></div>");
-		sb.append("</div>");
+		sb.append("""
+				<div class="card">
+				  <div class="card-header">
+				    <div id="guild-chart-title" class="card-title">Tracked guilds - active last 7 days</div>
+				    <div class="guild-chart-controls">
+				      <button id="guild-chart-mode" class="guild-chart-chip gchip-active" onclick="toggleGuildChartMode()">Mode: Total</button>
+				      <button id="guild-chart-toggle-all" class="guild-chart-chip" onclick="toggleGuildDatasets()">Hide all</button>
+				    </div>
+				  </div>
+				  <canvas id="c10" height="150"></canvas>
+				</div>
+				""");
 
 		// Charts 4+5 side by side
 		sb.append("<div class=\"grid grid-2\">");
@@ -500,13 +511,23 @@ public class WynnextrasServerApplication {
 				.append("const versionTimelineChart = new Chart(document.getElementById('c9'),{ type:'bar', data:copyVersionTimelineData('all'), options:versionTimelineOptions });\n")
 				.append("function setVersionTimelinePeriod(p) { versionTimelineChart.data = copyVersionTimelineData(p); document.querySelectorAll('.timeline-chip').forEach(c => c.classList.toggle('tchip-active', c.dataset.p === p)); versionTimelineChart.update(); }\n");
 
-		// Chart 10/11 scripts
-		sb.append("new Chart(document.getElementById('c10'),{ type:'line', data:{ labels:[").append(c10l)
-				.append("], datasets:[").append(c10datasets)
-				.append("] }, options:opts() });\n");
-		sb.append("new Chart(document.getElementById('c11'),{ type:'line', data:{ labels:[").append(c10l)
-				.append("], datasets:[").append(c11datasets)
-				.append("] }, options:opts() });\n");
+		// Chart 10 script
+		sb.append("const guildTimelineData = {")
+				.append("total:{ title:'Tracked guilds - active last 7 days', yLabel:'Active users', labels:[").append(c10l).append("], datasets:[").append(c10datasets).append("] },")
+				.append("percent:{ title:'Tracked guilds - WynnExtras adoption %', yLabel:'Adoption %', labels:[").append(c10l).append("], datasets:[").append(c11datasets).append("] }")
+				.append("};\n")
+				.append("let guildChartMode = 'total';\n")
+				.append("const guildDatasetVisible = {};\n")
+				.append("function copyGuildTimelineData(mode) { return { labels:[...guildTimelineData[mode].labels], datasets:guildTimelineData[mode].datasets.map(d => ({...d, data:[...d.data], hidden:guildDatasetVisible[d.label] === false})) }; }\n")
+				.append("const guildOptions = opts();\n")
+				.append("guildOptions.plugins.legend.onClick = function(e, legendItem, legend) { const chart = legend.chart; const i = legendItem.datasetIndex; const dataset = chart.data.datasets[i]; const nextVisible = !chart.isDatasetVisible(i); dataset.hidden = !nextVisible; guildDatasetVisible[dataset.label] = nextVisible; chart.update(); updateGuildToggleButton(); };\n")
+				.append("guildOptions.scales.y.title = { display:true, text:guildTimelineData.total.yLabel, color:'#4a6080' };\n")
+				.append("const guildChart = new Chart(document.getElementById('c10'),{ type:'line', data:copyGuildTimelineData('total'), options:guildOptions });\n")
+				.append("function captureGuildDatasetVisibility() { guildChart.data.datasets.forEach((d, i) => guildDatasetVisible[d.label] = guildChart.isDatasetVisible(i)); }\n")
+				.append("function setGuildChartMode(mode) { captureGuildDatasetVisibility(); guildChartMode = mode; guildChart.data = copyGuildTimelineData(mode); document.getElementById('guild-chart-title').textContent = guildTimelineData[mode].title; document.getElementById('guild-chart-mode').textContent = mode === 'total' ? 'Mode: Total' : 'Mode: Percent'; guildChart.options.scales.y.title.text = guildTimelineData[mode].yLabel; if (mode === 'percent') { guildChart.options.scales.y.max = 100; } else { delete guildChart.options.scales.y.max; } guildChart.update(); updateGuildToggleButton(); }\n")
+				.append("function toggleGuildChartMode() { setGuildChartMode(guildChartMode === 'total' ? 'percent' : 'total'); }\n")
+				.append("function updateGuildToggleButton() { const anyVisible = guildChart.data.datasets.some((d, i) => guildChart.isDatasetVisible(i)); document.getElementById('guild-chart-toggle-all').textContent = anyVisible ? 'Hide all' : 'Show all'; }\n")
+				.append("function toggleGuildDatasets() { const anyVisible = guildChart.data.datasets.some((d, i) => guildChart.isDatasetVisible(i)); const nextVisible = !anyVisible; guildChart.data.datasets.forEach(d => { d.hidden = !nextVisible; guildDatasetVisible[d.label] = nextVisible; }); guildChart.update(); updateGuildToggleButton(); }\n");
 
 		sb.append("""
 				// --- Guild Lookup ---
