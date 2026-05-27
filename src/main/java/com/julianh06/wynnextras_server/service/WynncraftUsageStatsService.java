@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Set;
 
 @Service
@@ -67,6 +68,28 @@ public class WynncraftUsageStatsService {
                 .toList());
     }
 
+    public List<UsageSampleBreakdown> buildSampleBreakdown(LocalDate snapshotDate) {
+        Instant dayStart = snapshotDate.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant nextDayStart = snapshotDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        return playerSightingRepository
+                .findUsageSampleBreakdownBetween(dayStart, nextDayStart, snapshotDate)
+                .stream()
+                .map(row -> {
+                    long visiblePlayers = row.getVisiblePlayers();
+                    long wynnExtrasUsers = row.getWynnExtrasUsers();
+                    double usagePercent = visiblePlayers == 0
+                            ? 0.0
+                            : (double) wynnExtrasUsers * 100.0 / visiblePlayers;
+                    return new UsageSampleBreakdown(
+                            row.getSampledAt(),
+                            visiblePlayers,
+                            wynnExtrasUsers,
+                            usagePercent);
+                })
+                .toList();
+    }
+
     @Transactional
     public WynncraftUsageSnapshot captureDailyUsageSnapshot(LocalDate snapshotDate, Instant snapshotInstant) {
         return captureDailyUsageSnapshot(snapshotDate, snapshotInstant, null);
@@ -115,4 +138,10 @@ public class WynncraftUsageStatsService {
     }
 
     public record CapturedOnlinePlayerSample(int visiblePlayers, int totalOnlinePlayers) {}
+
+    public record UsageSampleBreakdown(
+            Instant sampledAt,
+            long visiblePlayers,
+            long wynnExtrasUsers,
+            double usagePercent) {}
 }

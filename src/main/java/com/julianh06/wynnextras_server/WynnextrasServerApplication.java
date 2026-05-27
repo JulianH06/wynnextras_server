@@ -11,6 +11,7 @@ import com.julianh06.wynnextras_server.repository.GuildUserSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.VersionUsageSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
 import com.julianh06.wynnextras_server.repository.WynncraftUsageSnapshotRepository;
+import com.julianh06.wynnextras_server.service.WynncraftUsageStatsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -58,6 +59,9 @@ public class WynnextrasServerApplication {
 
 	@Autowired
 	private WynncraftUsageSnapshotRepository wynncraftUsageSnapshotRepository;
+
+	@Autowired
+	private WynncraftUsageStatsService wynncraftUsageStatsService;
 
 	public static void main(String[] args) {
 		SpringApplication.run(WynnextrasServerApplication.class, args);
@@ -215,13 +219,16 @@ public class WynnextrasServerApplication {
 		Collections.reverse(usageSnapshots);
 		StringBuilder c6bl = new StringBuilder(), c6bpct = new StringBuilder(), c6bUsers = new StringBuilder();
 		StringBuilder c6bVisible = new StringBuilder(), c6bOnline = new StringBuilder(), c6bSamples = new StringBuilder();
+		StringBuilder c6bSampleBreakdowns = new StringBuilder("{");
 		WynncraftUsageSnapshot latestUsageSnapshot = null;
 		for (WynncraftUsageSnapshot s : usageSnapshots) {
+			String snapshotDate = s.getSnapshotDate().toString();
 			appendCsv(c6bl, jsQuote(s.getSnapshotDate().toString()));
 			appendCsv(c6bUsers, Long.toString(s.getWynnExtrasUsers()));
 			appendCsv(c6bVisible, Long.toString(s.getUniquePlayers()));
 			appendCsv(c6bOnline, s.getTotalOnlinePlayers() == null ? "null" : Long.toString(s.getTotalOnlinePlayers()));
 			appendCsv(c6bSamples, Long.toString(s.getSampleCount()));
+			appendSampleBreakdown(c6bSampleBreakdowns, snapshotDate, wynncraftUsageStatsService.buildSampleBreakdown(s.getSnapshotDate()), utc);
 			if (s.getErrorMessage() != null) {
 				appendCsv(c6bpct, "null");
 			} else {
@@ -229,6 +236,7 @@ public class WynnextrasServerApplication {
 				latestUsageSnapshot = s;
 			}
 		}
+		c6bSampleBreakdowns.append("}");
 
 		// ── Chart 7/8: Daily heartbeat volume + retention/churn ──────────
 		List<Object[]> heartbeatRows = dailyUserActivityRepository.findDailyHeartbeatStats();
@@ -406,6 +414,7 @@ public class WynnextrasServerApplication {
 		// Snapshot/activity charts
 		sb.append("<div class=\"card\"><div class=\"card-title\">Active users snapshots (daily 01:00 UTC)</div><canvas id=\"c6\" height=\"80\"></canvas></div>");
 		sb.append("<div class=\"card\"><div class=\"card-title\">WynnExtras usage of active Wynncraft players (snapshot day UTC)</div><canvas id=\"c6b\" height=\"80\"></canvas></div>");
+		sb.append("<div class=\"card\"><div id=\"c6b-detail-title\" class=\"card-title\">WynnExtras usage by sample (UTC)</div><canvas id=\"c6b-detail\" height=\"90\"></canvas></div>");
 		sb.append("<div class=\"grid grid-2\">");
 		sb.append("<div class=\"card\"><div class=\"card-title\">Heartbeat volume per day (UTC)</div><canvas id=\"c7\" height=\"130\"></canvas></div>");
 		sb.append("<div class=\"card\"><div class=\"card-title\">New / returned users per day (UTC)</div><canvas id=\"c8\" height=\"130\"></canvas></div>");
@@ -510,10 +519,16 @@ public class WynnextrasServerApplication {
 				.append("{ label:'14d', data:[").append(c6d14).append("], borderColor:'#64a0ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }")
 				.append("] }, options:opts() });\n");
 
-		sb.append("const c6bUsers=[").append(c6bUsers).append("]; const c6bVisible=[").append(c6bVisible).append("]; const c6bOnline=[").append(c6bOnline).append("]; const c6bSamples=[").append(c6bSamples).append("];\n");
-		sb.append("new Chart(document.getElementById('c6b'),{ type:'line', data:{ labels:[").append(c6bl)
-				.append("], datasets:[{ label:'WynnExtras usage %', data:[").append(c6bpct)
-				.append("], borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const i=ctx.dataIndex; if (ctx.raw == null) return ' snapshot error'; const online = c6bOnline[i] == null ? 'unknown' : c6bOnline[i]; return ' '+ctx.raw.toFixed(2)+'% ('+c6bUsers[i]+' / '+c6bVisible[i]+' visible players, '+online+' total online players, '+c6bSamples[i]+' samples)'; } } } } }) });\n");
+		sb.append("const c6bLabels=[").append(c6bl).append("]; const c6bUsers=[").append(c6bUsers)
+				.append("]; const c6bVisible=[").append(c6bVisible).append("]; const c6bOnline=[").append(c6bOnline)
+				.append("]; const c6bSamples=[").append(c6bSamples).append("]; const c6bSampleBreakdowns=")
+				.append(c6bSampleBreakdowns).append(";\n");
+		sb.append("const c6bChart=new Chart(document.getElementById('c6b'),{ type:'line', data:{ labels:c6bLabels, datasets:[{ label:'WynnExtras usage %', data:[")
+				.append(c6bpct)
+				.append("], borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ onClick:function(evt,elements){ if(elements.length){ setUsageSampleDay(elements[0].index); } }, scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const i=ctx.dataIndex; if (ctx.raw == null) return ' snapshot error'; const online = c6bOnline[i] == null ? 'unknown' : c6bOnline[i]; return ' '+ctx.raw.toFixed(2)+'% ('+c6bUsers[i]+' / '+c6bVisible[i]+' visible players, '+online+' total online players, '+c6bSamples[i]+' samples)'; } } } } }) });\n");
+		sb.append("const c6bDetailTitle=document.getElementById('c6b-detail-title'); const c6bDetailChart=new Chart(document.getElementById('c6b-detail'),{ type:'line', data:{ labels:[], datasets:[{ label:'Sample usage %', data:[], borderColor:'#00c8ff', backgroundColor:'rgba(0,200,255,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:24}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const row=(c6bDetailChart.$rows||[])[ctx.dataIndex]; if(!row) return ''; return ' '+ctx.raw.toFixed(2)+'% ('+row.users+' / '+row.visible+' visible players)'; }, title:function(items){ const row=(c6bDetailChart.$rows||[])[items[0]?.dataIndex]; return row ? row.ts : ''; } } } } }) });\n");
+		sb.append("function setUsageSampleDay(index){ if(index == null || index < 0 || index >= c6bLabels.length) return; const day=c6bLabels[index]; const rows=c6bSampleBreakdowns[day] || []; c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+(rows.length ? '' : ' - no samples'); c6bDetailChart.$rows=rows; c6bDetailChart.data.labels=rows.map(r=>r.t); c6bDetailChart.data.datasets[0].data=rows.map(r=>r.pct); c6bDetailChart.update(); c6bChart.data.datasets[0].pointRadius=c6bLabels.map((_,i)=>i===index?5:2); c6bChart.update(); }\n");
+		sb.append("const initialUsageSampleIndex=c6bLabels.map((_,i)=>i).reverse().find(i=>(c6bSampleBreakdowns[c6bLabels[i]] || []).length > 0); setUsageSampleDay(initialUsageSampleIndex === undefined ? c6bLabels.length - 1 : initialUsageSampleIndex);\n");
 
 		// Chart 7 script
 		sb.append("new Chart(document.getElementById('c7'),{ type:'bar', data:{ labels:[").append(c7l)
@@ -694,6 +709,27 @@ public class WynnextrasServerApplication {
 	private static void appendCsv(StringBuilder sb, String value) {
 		if (sb.length() > 0) sb.append(",");
 		sb.append(value);
+	}
+
+	private static void appendSampleBreakdown(
+			StringBuilder sb,
+			String snapshotDate,
+			List<WynncraftUsageStatsService.UsageSampleBreakdown> samples,
+			ZoneId zone) {
+		if (sb.length() > 1) sb.append(",");
+		sb.append(jsQuote(snapshotDate)).append(":[");
+		DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm").withZone(zone);
+		for (int i = 0; i < samples.size(); i++) {
+			WynncraftUsageStatsService.UsageSampleBreakdown sample = samples.get(i);
+			if (i > 0) sb.append(",");
+			sb.append("{t:").append(jsQuote(timeFmt.format(sample.sampledAt())))
+					.append(",ts:").append(jsQuote(sample.sampledAt().toString()))
+					.append(",pct:").append(formatNumber(sample.usagePercent(), 2))
+					.append(",users:").append(sample.wynnExtrasUsers())
+					.append(",visible:").append(sample.visiblePlayers())
+					.append("}");
+		}
+		sb.append("]");
 	}
 
 	private static void appendTimelineDataset(StringBuilder sb, String label, StringBuilder data, String color) {

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 @Repository
 public interface WynncraftPlayerSightingRepository extends JpaRepository<WynncraftPlayerSighting, Long> {
@@ -39,7 +40,31 @@ public interface WynncraftPlayerSightingRepository extends JpaRepository<Wynncra
             """)
     long countUniquePlayersSeenInRange(@Param("start") Instant start, @Param("end") Instant end);
 
+    @Query("""
+            SELECT s.sampledAt AS sampledAt,
+                   COUNT(DISTINCT s.playerUuid) AS visiblePlayers,
+                   COUNT(DISTINCT d.userUuid) AS wynnExtrasUsers
+            FROM WynncraftPlayerSighting s
+            LEFT JOIN DailyUserActivity d
+              ON d.activityDate = :activityDate
+             AND d.userUuid = s.playerUuid
+            WHERE s.sampledAt >= :start
+              AND s.sampledAt < :end
+            GROUP BY s.sampledAt
+            ORDER BY s.sampledAt ASC
+            """)
+    List<UsageSampleBreakdownRow> findUsageSampleBreakdownBetween(
+            @Param("start") Instant start,
+            @Param("end") Instant end,
+            @Param("activityDate") LocalDate activityDate);
+
     @Modifying
     @Query("DELETE FROM WynncraftPlayerSighting s WHERE s.sampledAt < :cutoff")
     int deleteBySampledAtBefore(@Param("cutoff") Instant cutoff);
+
+    interface UsageSampleBreakdownRow {
+        Instant getSampledAt();
+        long getVisiblePlayers();
+        long getWynnExtrasUsers();
+    }
 }
