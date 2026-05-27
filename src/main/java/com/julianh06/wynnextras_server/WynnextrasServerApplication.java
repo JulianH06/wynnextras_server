@@ -4,11 +4,13 @@ import com.julianh06.wynnextras_server.entity.ActiveUserSnapshot;
 import com.julianh06.wynnextras_server.entity.GuildUserSnapshot;
 import com.julianh06.wynnextras_server.entity.VersionUsageSnapshot;
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
+import com.julianh06.wynnextras_server.entity.WynncraftUsageSnapshot;
 import com.julianh06.wynnextras_server.repository.ActiveUserSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.DailyUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.GuildUserSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.VersionUsageSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
+import com.julianh06.wynnextras_server.repository.WynncraftUsageSnapshotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -29,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Set;
 
 @SpringBootApplication
@@ -52,6 +55,9 @@ public class WynnextrasServerApplication {
 
 	@Autowired
 	private VersionUsageSnapshotRepository versionUsageSnapshotRepository;
+
+	@Autowired
+	private WynncraftUsageSnapshotRepository wynncraftUsageSnapshotRepository;
 
 	public static void main(String[] args) {
 		SpringApplication.run(WynnextrasServerApplication.class, args);
@@ -204,6 +210,25 @@ public class WynnextrasServerApplication {
 			appendCsv(c6d14, Long.toString(s.getActive14d()));
 		}
 
+		// ── Chart 6b: Wynncraft-wide daily usage percentage ──────────────
+		List<WynncraftUsageSnapshot> usageSnapshots = wynncraftUsageSnapshotRepository.findTop90ByOrderBySnapshotDateDesc();
+		Collections.reverse(usageSnapshots);
+		StringBuilder c6bl = new StringBuilder(), c6bpct = new StringBuilder(), c6bUsers = new StringBuilder();
+		StringBuilder c6bTotal = new StringBuilder(), c6bSamples = new StringBuilder();
+		WynncraftUsageSnapshot latestUsageSnapshot = null;
+		for (WynncraftUsageSnapshot s : usageSnapshots) {
+			appendCsv(c6bl, jsQuote(s.getSnapshotDate().toString()));
+			appendCsv(c6bUsers, Long.toString(s.getWynnExtrasUsers()));
+			appendCsv(c6bTotal, Long.toString(s.getUniquePlayers()));
+			appendCsv(c6bSamples, Long.toString(s.getSampleCount()));
+			if (s.getErrorMessage() != null) {
+				appendCsv(c6bpct, "null");
+			} else {
+				appendCsv(c6bpct, formatNumber(s.getUsagePercent(), 2));
+				latestUsageSnapshot = s;
+			}
+		}
+
 		// ── Chart 7/8: Daily heartbeat volume + retention/churn ──────────
 		List<Object[]> heartbeatRows = dailyUserActivityRepository.findDailyHeartbeatStats();
 		StringBuilder c7l = new StringBuilder(), c7unique = new StringBuilder(), c7heartbeats = new StringBuilder();
@@ -335,7 +360,7 @@ public class WynnextrasServerApplication {
 				  .guild-chart-controls { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
 				  .guild-chart-chip { font-family:'Share Tech Mono',monospace; font-size:10px; padding:5px 9px; border-radius:4px; border:1px solid #2a3545; background:transparent; color:#4a6080; cursor:pointer; white-space:nowrap; }
 				  .guild-chart-chip.gchip-active { border-color:#00c8ff; color:#00c8ff; background:rgba(0,200,255,0.08); }
-				  .metric-grid { display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:12px; max-width:1200px; margin-bottom:20px; }
+				  .metric-grid { display:grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap:12px; max-width:1200px; margin-bottom:20px; }
 				  .metric { background:#111419; border:1px solid #1e2530; border-radius:8px; padding:14px; }
 				  .metric-label { color:#4a6080; font-size:9px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
 				  .metric-value { color:#c8d8e8; font-size:22px; }
@@ -361,6 +386,9 @@ public class WynnextrasServerApplication {
 		sb.append("<div class=\"metric\"><div class=\"metric-label\">Inactive > 7d</div><div class=\"metric-value\">").append(inactive7).append("</div></div>");
 		sb.append("<div class=\"metric\"><div class=\"metric-label\">Inactive > 14d</div><div class=\"metric-value\">").append(inactive14).append("</div></div>");
 		sb.append("<div class=\"metric\"><div class=\"metric-label\">Inactive > 30d</div><div class=\"metric-value\">").append(inactive30).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Wynncraft daily usage</div><div class=\"metric-value\">")
+				.append(latestUsageSnapshot == null ? "n/a" : formatNumber(latestUsageSnapshot.getUsagePercent(), 2) + "%")
+				.append("</div></div>");
 		sb.append("</div>");
 		sb.append("<div class=\"grid\" style=\"max-width:1200px\">");
 
@@ -376,6 +404,7 @@ public class WynnextrasServerApplication {
 
 		// Snapshot/activity charts
 		sb.append("<div class=\"card\"><div class=\"card-title\">Active users snapshots (daily 01:00 UTC)</div><canvas id=\"c6\" height=\"80\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">WynnExtras usage of active Wynncraft players (snapshot day UTC)</div><canvas id=\"c6b\" height=\"80\"></canvas></div>");
 		sb.append("<div class=\"grid grid-2\">");
 		sb.append("<div class=\"card\"><div class=\"card-title\">Heartbeat volume per day (UTC)</div><canvas id=\"c7\" height=\"130\"></canvas></div>");
 		sb.append("<div class=\"card\"><div class=\"card-title\">New / returned users per day (UTC)</div><canvas id=\"c8\" height=\"130\"></canvas></div>");
@@ -479,6 +508,11 @@ public class WynnextrasServerApplication {
 				.append("{ label:'10d', data:[").append(c6d10).append("], borderColor:'#b464ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 },")
 				.append("{ label:'14d', data:[").append(c6d14).append("], borderColor:'#64a0ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }")
 				.append("] }, options:opts() });\n");
+
+		sb.append("const c6bUsers=[").append(c6bUsers).append("]; const c6bTotal=[").append(c6bTotal).append("]; const c6bSamples=[").append(c6bSamples).append("];\n");
+		sb.append("new Chart(document.getElementById('c6b'),{ type:'line', data:{ labels:[").append(c6bl)
+				.append("], datasets:[{ label:'WynnExtras usage %', data:[").append(c6bpct)
+				.append("], borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const i=ctx.dataIndex; if (ctx.raw == null) return ' snapshot error'; return ' '+ctx.raw.toFixed(2)+'% ('+c6bUsers[i]+' / '+c6bTotal[i]+' players, '+c6bSamples[i]+' samples)'; } } } } }) });\n");
 
 		// Chart 7 script
 		sb.append("new Chart(document.getElementById('c7'),{ type:'bar', data:{ labels:[").append(c7l)
@@ -677,6 +711,10 @@ public class WynnextrasServerApplication {
 				.replace("\"", "\\\"")
 				.replace("\n", "\\n")
 				.replace("\r", "\\r") + "\"";
+	}
+
+	private static String formatNumber(double value, int decimals) {
+		return String.format(Locale.US, "%." + decimals + "f", value);
 	}
 
 	@GetMapping("/admin/panel")
@@ -1160,7 +1198,7 @@ public class WynnextrasServerApplication {
 				      <span class="section-label">Raid Loot Pool</span>
 				      <div class="section-line"></div>
 				    </div>
-				
+
 				    <div class="card">
 				      <div class="card-title">Wipe Raid Pool — einzelner Raid</div>
 				      <div class="card-desc">
@@ -1299,6 +1337,15 @@ public class WynnextrasServerApplication {
 				      <div class="card-desc">Lädt die Verified-User-Liste neu aus der Datei (VERIFIED_USERS.md).</div>
 				      <div class="card-actions">
 				        <button class="btn btn-accent" onclick="reloadVerified()">↻ Reload</button>
+				      </div>
+				    </div>
+				    <div class="card">
+				      <div class="card-title">Wynncraft Usage Snapshot auslösen</div>
+				      <div class="card-desc">
+				        Holt sofort die aktuelle Wynncraft-Online-Liste und berechnet den Usage-Snapshot für den aktuellen UTC-Tag neu.
+				      </div>
+				      <div class="card-actions">
+				        <button class="btn btn-accent" id="usage-snapshot-btn" onclick="captureUsageSnapshot()">Snapshot auslösen</button>
 				      </div>
 				    </div>
 				  </div>
@@ -1582,11 +1629,33 @@ public class WynnextrasServerApplication {
 				      } else {
 				        toast('✗ Fehler: ' + r.text, 'err');
 				      }
-				    } catch(e) {
-				      toast('✗ ' + e.message, 'err');
-				    }
-				  }
-				</script>
+					    } catch(e) {
+					      toast('✗ ' + e.message, 'err');
+					    }
+					  }
+
+					  async function captureUsageSnapshot() {
+					    const btn = document.getElementById('usage-snapshot-btn');
+					    btn.disabled = true;
+					    btn.innerHTML = '<span class="spin"></span> Läuft...';
+					    toast('Wynncraft Usage Snapshot läuft...', 'inf');
+
+					    try {
+					      const r = await api('POST', '/admin/wynncraft-usage/snapshot');
+					      if (r.ok) {
+					        const data = JSON.parse(r.text);
+					        toast(`✓ Snapshot ${data.snapshotDate}: ${data.usagePercent.toFixed(2)}% (${data.wynnExtrasUsers}/${data.uniquePlayers})`, 'ok');
+					      } else {
+					        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+					      }
+					    } catch(e) {
+					      toast('✗ ' + e.message, 'err');
+					    } finally {
+					      btn.disabled = false;
+					      btn.textContent = 'Snapshot auslösen';
+					    }
+					  }
+					</script>
 				</body>
 				</html>
         """;

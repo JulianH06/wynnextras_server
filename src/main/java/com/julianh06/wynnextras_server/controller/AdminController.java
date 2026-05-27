@@ -1,9 +1,11 @@
 package com.julianh06.wynnextras_server.controller;
 
 import com.julianh06.wynnextras_server.WynncraftService;
+import com.julianh06.wynnextras_server.entity.WynncraftUsageSnapshot;
 import com.julianh06.wynnextras_server.repository.*;
 import com.julianh06.wynnextras_server.service.GuildStatsService;
 import com.julianh06.wynnextras_server.service.VerifiedUserLoader;
+import com.julianh06.wynnextras_server.service.WynncraftUsageStatsService;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +13,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +38,7 @@ public class AdminController {
     @Autowired private PersonalAspectRepository personalAspectRepo;
     @Autowired private GuildStatsService guildStatsService;
     @Autowired private WynncraftService wynncraftService;
+    @Autowired private WynncraftUsageStatsService wynncraftUsageStatsService;
 
     /**
      * Reload verified users from file
@@ -260,6 +266,34 @@ public class AdminController {
         } catch (Exception e) {
             logger.error("Error fetching guild data for tag: {}", tag, e);
             return ResponseEntity.status(502).body(Map.of("error", "Error: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/wynncraft-usage/snapshot")
+    public ResponseEntity<?> captureWynncraftUsageSnapshot() {
+        Instant snapshotInstant = Instant.now();
+        LocalDate snapshotDate = LocalDate.ofInstant(snapshotInstant, ZoneOffset.UTC);
+
+        try {
+            int visiblePlayersSampled = wynncraftUsageStatsService.captureOnlinePlayerSample(snapshotInstant);
+            WynncraftUsageSnapshot snapshot = wynncraftUsageStatsService.captureDailyUsageSnapshot(snapshotDate, snapshotInstant);
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "snapshotDate", snapshot.getSnapshotDate().toString(),
+                    "capturedAt", snapshot.getCapturedAt().toString(),
+                    "visiblePlayersSampled", visiblePlayersSampled,
+                    "uniquePlayers", snapshot.getUniquePlayers(),
+                    "wynnExtrasUsers", snapshot.getWynnExtrasUsers(),
+                    "usagePercent", snapshot.getUsagePercent(),
+                    "sampleCount", snapshot.getSampleCount()
+            ));
+        } catch (Exception e) {
+            logger.error("Error capturing manual Wynncraft usage snapshot", e);
+            return ResponseEntity.status(502).body(Map.of(
+                    "status", "error",
+                    "message", "Failed to capture Wynncraft usage snapshot: " + e.getMessage()
+            ));
         }
     }
 }

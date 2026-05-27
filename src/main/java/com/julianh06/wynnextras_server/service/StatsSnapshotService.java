@@ -37,6 +37,7 @@ public class StatsSnapshotService {
     @Autowired private VersionUsageSnapshotRepository versionUsageSnapshotRepository;
     @Autowired private GuildUserSnapshotRepository guildUserSnapshotRepository;
     @Autowired private GuildStatsService guildStatsService;
+    @Autowired private WynncraftUsageStatsService wynncraftUsageStatsService;
 
     @Scheduled(cron = "0 0 1 * * *", zone = "UTC")
     public void captureDailySnapshots() {
@@ -50,6 +51,7 @@ public class StatsSnapshotService {
         logger.info("Capturing daily stats snapshots for {}", snapshotDate);
         captureActiveUserSnapshot(snapshotDate, snapshotInstant);
         captureVersionUsageSnapshots(snapshotDate, snapshotInstant);
+        wynncraftUsageStatsService.captureDailyUsageSnapshot(snapshotDate, snapshotInstant);
         captureGuildSnapshots(snapshotDate, snapshotInstant);
     }
 

@@ -617,6 +617,16 @@
         <button class="btn btn-accent" onclick="reloadVerified()">↻ Reload</button>
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-title">Wynncraft Usage Snapshot auslösen</div>
+      <div class="card-desc">
+        Holt sofort die aktuelle Wynncraft-Online-Liste und berechnet den Usage-Snapshot für den aktuellen UTC-Tag neu.
+      </div>
+      <div class="card-actions">
+        <button class="btn btn-accent" id="usage-snapshot-btn" onclick="captureUsageSnapshot()">Snapshot auslösen</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -900,6 +910,28 @@
       }
     } catch(e) {
       toast('✗ ' + e.message, 'err');
+    }
+  }
+
+  async function captureUsageSnapshot() {
+    const btn = document.getElementById('usage-snapshot-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span> Läuft...';
+    toast('Wynncraft Usage Snapshot läuft...', 'inf');
+
+    try {
+      const r = await api('POST', '/admin/wynncraft-usage/snapshot');
+      if (r.ok) {
+        const data = JSON.parse(r.text);
+        toast(`✓ Snapshot ${data.snapshotDate}: ${data.usagePercent.toFixed(2)}% (${data.wynnExtrasUsers}/${data.uniquePlayers})`, 'ok');
+      } else {
+        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+      }
+    } catch(e) {
+      toast('✗ ' + e.message, 'err');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Snapshot auslösen';
     }
   }
 </script>

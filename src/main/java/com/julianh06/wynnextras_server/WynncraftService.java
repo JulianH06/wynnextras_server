@@ -17,6 +17,7 @@ import java.util.Set;
 @Service
 public class WynncraftService {
     private static final URI CLASSES_URI = URI.create("https://api.wynncraft.com/v3/classes");
+    private static final URI ONLINE_PLAYERS_URI = URI.create("https://api.wynncraft.com/v3/player?identifier=uuid");
     private static final String ASPECTS_URL_TEMPLATE = "https://api.wynncraft.com/v3/aspects/%s";
 
     private final HttpClient client = HttpClient.newHttpClient();
@@ -87,6 +88,30 @@ public class WynncraftService {
         }
     }
 
+    public Set<String> fetchOnlinePlayerUuids() {
+        try {
+            JsonNode root = fetchJson(ONLINE_PLAYERS_URI);
+            JsonNode players = root.path("players");
+            if (!players.isObject()) {
+                throw new RuntimeException("Invalid JSON: players response is not an object");
+            }
+
+            Set<String> uuids = new LinkedHashSet<>();
+            Iterator<String> fieldNames = players.fieldNames();
+            while (fieldNames.hasNext()) {
+                String uuid = fieldNames.next().replace("-", "").toLowerCase();
+                if (uuid.matches("[0-9a-f]{32}")) {
+                    uuids.add(uuid);
+                }
+            }
+
+            return uuids;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch online Wynncraft players", e);
+        }
+    }
+
     private Set<String> fetchClassTrees() throws Exception {
         JsonNode root = fetchJson(CLASSES_URI);
         Set<String> classTrees = new LinkedHashSet<>();
@@ -120,4 +145,3 @@ public class WynncraftService {
         return mapper.readTree(response.body());
     }
 }
-
