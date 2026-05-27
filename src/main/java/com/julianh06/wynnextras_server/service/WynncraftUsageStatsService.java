@@ -75,7 +75,7 @@ public class WynncraftUsageStatsService {
         try {
             Instant dayStart = snapshotDate.atStartOfDay().toInstant(ZoneOffset.UTC);
             Instant nextDayStart = snapshotDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
-            Instant dayEnd = snapshotInstant.isBefore(nextDayStart) ? snapshotInstant : nextDayStart;
+            Instant dayEnd = snapshotInstant.isBefore(nextDayStart) ? snapshotInstant.plusNanos(1) : nextDayStart;
 
             long uniquePlayers = playerSightingRepository.countUniquePlayersSeenInRange(dayStart, dayEnd);
             long wynnExtrasUsers = playerSightingRepository.countDailyActiveWynnExtrasUsersSeenBetween(dayStart, dayEnd, snapshotDate);
