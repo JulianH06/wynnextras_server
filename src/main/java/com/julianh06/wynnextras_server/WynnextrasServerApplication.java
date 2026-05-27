@@ -214,12 +214,13 @@ public class WynnextrasServerApplication {
 		List<WynncraftUsageSnapshot> usageSnapshots = wynncraftUsageSnapshotRepository.findTop90ByOrderBySnapshotDateDesc();
 		Collections.reverse(usageSnapshots);
 		StringBuilder c6bl = new StringBuilder(), c6bpct = new StringBuilder(), c6bUsers = new StringBuilder();
-		StringBuilder c6bTotal = new StringBuilder(), c6bSamples = new StringBuilder();
+		StringBuilder c6bVisible = new StringBuilder(), c6bOnline = new StringBuilder(), c6bSamples = new StringBuilder();
 		WynncraftUsageSnapshot latestUsageSnapshot = null;
 		for (WynncraftUsageSnapshot s : usageSnapshots) {
 			appendCsv(c6bl, jsQuote(s.getSnapshotDate().toString()));
 			appendCsv(c6bUsers, Long.toString(s.getWynnExtrasUsers()));
-			appendCsv(c6bTotal, Long.toString(s.getUniquePlayers()));
+			appendCsv(c6bVisible, Long.toString(s.getUniquePlayers()));
+			appendCsv(c6bOnline, s.getTotalOnlinePlayers() == null ? "null" : Long.toString(s.getTotalOnlinePlayers()));
 			appendCsv(c6bSamples, Long.toString(s.getSampleCount()));
 			if (s.getErrorMessage() != null) {
 				appendCsv(c6bpct, "null");
@@ -509,10 +510,10 @@ public class WynnextrasServerApplication {
 				.append("{ label:'14d', data:[").append(c6d14).append("], borderColor:'#64a0ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }")
 				.append("] }, options:opts() });\n");
 
-		sb.append("const c6bUsers=[").append(c6bUsers).append("]; const c6bTotal=[").append(c6bTotal).append("]; const c6bSamples=[").append(c6bSamples).append("];\n");
+		sb.append("const c6bUsers=[").append(c6bUsers).append("]; const c6bVisible=[").append(c6bVisible).append("]; const c6bOnline=[").append(c6bOnline).append("]; const c6bSamples=[").append(c6bSamples).append("];\n");
 		sb.append("new Chart(document.getElementById('c6b'),{ type:'line', data:{ labels:[").append(c6bl)
 				.append("], datasets:[{ label:'WynnExtras usage %', data:[").append(c6bpct)
-				.append("], borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const i=ctx.dataIndex; if (ctx.raw == null) return ' snapshot error'; return ' '+ctx.raw.toFixed(2)+'% ('+c6bUsers[i]+' / '+c6bTotal[i]+' players, '+c6bSamples[i]+' samples)'; } } } } }) });\n");
+				.append("], borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const i=ctx.dataIndex; if (ctx.raw == null) return ' snapshot error'; const online = c6bOnline[i] == null ? 'unknown' : c6bOnline[i]; return ' '+ctx.raw.toFixed(2)+'% ('+c6bUsers[i]+' / '+c6bVisible[i]+' visible players, '+online+' total online players, '+c6bSamples[i]+' samples)'; } } } } }) });\n");
 
 		// Chart 7 script
 		sb.append("new Chart(document.getElementById('c7'),{ type:'bar', data:{ labels:[").append(c7l)
@@ -1644,7 +1645,7 @@ public class WynnextrasServerApplication {
 					      const r = await api('POST', '/admin/wynncraft-usage/snapshot');
 					      if (r.ok) {
 					        const data = JSON.parse(r.text);
-					        toast(`✓ Snapshot ${data.snapshotDate}: ${data.usagePercent.toFixed(2)}% (${data.wynnExtrasUsers}/${data.uniquePlayers})`, 'ok');
+					        toast(`✓ Snapshot ${data.snapshotDate}: ${data.usagePercent.toFixed(2)}% (${data.wynnExtrasUsers}/${data.uniquePlayers} visible, ${data.totalOnlinePlayers} total online)`, 'ok');
 					      } else {
 					        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
 					      }

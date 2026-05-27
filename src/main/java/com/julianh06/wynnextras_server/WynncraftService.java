@@ -23,6 +23,8 @@ public class WynncraftService {
     private final HttpClient client = HttpClient.newHttpClient();
     private final ObjectMapper mapper = new ObjectMapper();
 
+    public record OnlinePlayerSample(Set<String> playerUuids, int totalOnlinePlayers) {}
+
     public List<String> fetchUuid(String apiKey) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
@@ -89,6 +91,10 @@ public class WynncraftService {
     }
 
     public Set<String> fetchOnlinePlayerUuids() {
+        return fetchOnlinePlayerSample().playerUuids();
+    }
+
+    public OnlinePlayerSample fetchOnlinePlayerSample() {
         try {
             JsonNode root = fetchJson(ONLINE_PLAYERS_URI);
             JsonNode players = root.path("players");
@@ -105,7 +111,7 @@ public class WynncraftService {
                 }
             }
 
-            return uuids;
+            return new OnlinePlayerSample(uuids, root.path("total").asInt(uuids.size()));
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to fetch online Wynncraft players", e);

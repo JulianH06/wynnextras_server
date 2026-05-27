@@ -39,17 +39,18 @@ public class WynncraftUsageStatsService {
         Instant sampledAt = Instant.now();
 
         try {
-            int visiblePlayerCount = captureOnlinePlayerSample(sampledAt);
-            logger.info("Captured Wynncraft online player sample: {} visible UUIDs", visiblePlayerCount);
+            CapturedOnlinePlayerSample sample = captureOnlinePlayerSample(sampledAt);
+            logger.info("Captured Wynncraft online player sample: {} visible UUIDs, {} total online players",
+                    sample.visiblePlayers(), sample.totalOnlinePlayers());
         } catch (Exception e) {
             logger.warn("Failed to capture Wynncraft online player sample: {}", e.getMessage());
         }
     }
 
-    public int captureOnlinePlayerSample(Instant sampledAt) {
-        Set<String> onlinePlayerUuids = wynncraftService.fetchOnlinePlayerUuids();
-        storeOnlinePlayerSample(sampledAt, onlinePlayerUuids);
-        return onlinePlayerUuids.size();
+    public CapturedOnlinePlayerSample captureOnlinePlayerSample(Instant sampledAt) {
+        WynncraftService.OnlinePlayerSample sample = wynncraftService.fetchOnlinePlayerSample();
+        storeOnlinePlayerSample(sampledAt, sample.playerUuids());
+        return new CapturedOnlinePlayerSample(sample.playerUuids().size(), sample.totalOnlinePlayers());
     }
 
     public void storeOnlinePlayerSample(Instant sampledAt, Set<String> onlinePlayerUuids) {
@@ -68,9 +69,20 @@ public class WynncraftUsageStatsService {
 
     @Transactional
     public WynncraftUsageSnapshot captureDailyUsageSnapshot(LocalDate snapshotDate, Instant snapshotInstant) {
+        return captureDailyUsageSnapshot(snapshotDate, snapshotInstant, null);
+    }
+
+    @Transactional
+    public WynncraftUsageSnapshot captureDailyUsageSnapshot(
+            LocalDate snapshotDate,
+            Instant snapshotInstant,
+            Long totalOnlinePlayers) {
         WynncraftUsageSnapshot snapshot = usageSnapshotRepository.findBySnapshotDate(snapshotDate)
                 .orElseGet(() -> new WynncraftUsageSnapshot(snapshotDate, snapshotInstant));
         snapshot.setCapturedAt(snapshotInstant);
+        if (totalOnlinePlayers != null) {
+            snapshot.setTotalOnlinePlayers(totalOnlinePlayers);
+        }
 
         try {
             Instant dayStart = snapshotDate.atStartOfDay().toInstant(ZoneOffset.UTC);
@@ -101,4 +113,6 @@ public class WynncraftUsageStatsService {
     private static String normalizeUuid(String uuid) {
         return uuid.replace("-", "").toLowerCase();
     }
+
+    public record CapturedOnlinePlayerSample(int visiblePlayers, int totalOnlinePlayers) {}
 }

@@ -22,6 +22,9 @@ public class WynncraftUsageSnapshot {
     @Column(name = "unique_players", nullable = false)
     private long uniquePlayers;
 
+    @Column(name = "total_online_players")
+    private Long totalOnlinePlayers;
+
     @Column(name = "wynnextras_users", nullable = false)
     private long wynnExtrasUsers;
 
@@ -52,6 +55,9 @@ public class WynncraftUsageSnapshot {
 
     public long getUniquePlayers() { return uniquePlayers; }
     public void setUniquePlayers(long uniquePlayers) { this.uniquePlayers = uniquePlayers; }
+
+    public Long getTotalOnlinePlayers() { return totalOnlinePlayers; }
+    public void setTotalOnlinePlayers(Long totalOnlinePlayers) { this.totalOnlinePlayers = totalOnlinePlayers; }
 
     public long getWynnExtrasUsers() { return wynnExtrasUsers; }
     public void setWynnExtrasUsers(long wynnExtrasUsers) { this.wynnExtrasUsers = wynnExtrasUsers; }

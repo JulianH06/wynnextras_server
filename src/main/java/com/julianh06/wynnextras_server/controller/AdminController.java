@@ -275,14 +275,19 @@ public class AdminController {
         LocalDate snapshotDate = LocalDate.ofInstant(snapshotInstant, ZoneOffset.UTC);
 
         try {
-            int visiblePlayersSampled = wynncraftUsageStatsService.captureOnlinePlayerSample(snapshotInstant);
-            WynncraftUsageSnapshot snapshot = wynncraftUsageStatsService.captureDailyUsageSnapshot(snapshotDate, snapshotInstant);
+            WynncraftUsageStatsService.CapturedOnlinePlayerSample sample =
+                    wynncraftUsageStatsService.captureOnlinePlayerSample(snapshotInstant);
+            WynncraftUsageSnapshot snapshot = wynncraftUsageStatsService.captureDailyUsageSnapshot(
+                    snapshotDate,
+                    snapshotInstant,
+                    (long) sample.totalOnlinePlayers());
 
             return ResponseEntity.ok(Map.of(
                     "status", "success",
                     "snapshotDate", snapshot.getSnapshotDate().toString(),
                     "capturedAt", snapshot.getCapturedAt().toString(),
-                    "visiblePlayersSampled", visiblePlayersSampled,
+                    "visiblePlayersSampled", sample.visiblePlayers(),
+                    "totalOnlinePlayers", snapshot.getTotalOnlinePlayers(),
                     "uniquePlayers", snapshot.getUniquePlayers(),
                     "wynnExtrasUsers", snapshot.getWynnExtrasUsers(),
                     "usagePercent", snapshot.getUsagePercent(),

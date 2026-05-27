@@ -51,7 +51,15 @@ public class StatsSnapshotService {
         logger.info("Capturing daily stats snapshots for {}", snapshotDate);
         captureActiveUserSnapshot(snapshotDate, snapshotInstant);
         captureVersionUsageSnapshots(snapshotDate, snapshotInstant);
-        wynncraftUsageStatsService.captureDailyUsageSnapshot(snapshotDate, snapshotInstant);
+        Long totalOnlinePlayers = null;
+        try {
+            WynncraftUsageStatsService.CapturedOnlinePlayerSample sample =
+                    wynncraftUsageStatsService.captureOnlinePlayerSample(snapshotInstant);
+            totalOnlinePlayers = (long) sample.totalOnlinePlayers();
+        } catch (Exception e) {
+            logger.warn("Failed to capture current Wynncraft online player total for daily snapshot: {}", e.getMessage());
+        }
+        wynncraftUsageStatsService.captureDailyUsageSnapshot(snapshotDate, snapshotInstant, totalOnlinePlayers);
         captureGuildSnapshots(snapshotDate, snapshotInstant);
     }
 
