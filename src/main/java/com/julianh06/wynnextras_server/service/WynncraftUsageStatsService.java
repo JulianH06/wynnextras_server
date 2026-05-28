@@ -72,8 +72,49 @@ public class WynncraftUsageStatsService {
         Instant dayStart = snapshotDate.atStartOfDay().toInstant(ZoneOffset.UTC);
         Instant nextDayStart = snapshotDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
 
+        return buildSampleBreakdownBetween(dayStart, nextDayStart);
+    }
+
+    public List<UsageSampleBreakdown> buildSampleBreakdownUntil(LocalDate snapshotDate, Instant snapshotInstant) {
+        Instant dayStart = snapshotDate.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant nextDayStart = snapshotDate.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant dayEnd = snapshotInstant.isBefore(nextDayStart) ? snapshotInstant.plusNanos(1) : nextDayStart;
+
+        return buildSampleBreakdownBetween(dayStart, dayEnd);
+    }
+
+    public UsageSampleStats buildSampleStats(List<UsageSampleBreakdown> samples) {
+        if (samples == null || samples.isEmpty()) {
+            return UsageSampleStats.empty();
+        }
+
+        double totalUsagePercent = 0.0;
+        double lowestUsagePercent = Double.MAX_VALUE;
+        double highestUsagePercent = Double.NEGATIVE_INFINITY;
+        long totalVisiblePlayers = 0;
+        long totalWynnExtrasUsers = 0;
+
+        for (UsageSampleBreakdown sample : samples) {
+            double usagePercent = sample.usagePercent();
+            totalUsagePercent += usagePercent;
+            lowestUsagePercent = Math.min(lowestUsagePercent, usagePercent);
+            highestUsagePercent = Math.max(highestUsagePercent, usagePercent);
+            totalVisiblePlayers += sample.visiblePlayers();
+            totalWynnExtrasUsers += sample.wynnExtrasUsers();
+        }
+
+        return new UsageSampleStats(
+                samples.size(),
+                totalUsagePercent / samples.size(),
+                lowestUsagePercent,
+                highestUsagePercent,
+                Math.round((double) totalVisiblePlayers / samples.size()),
+                Math.round((double) totalWynnExtrasUsers / samples.size()));
+    }
+
+    private List<UsageSampleBreakdown> buildSampleBreakdownBetween(Instant dayStart, Instant dayEnd) {
         return playerSightingRepository
-                .findUsageSampleBreakdownBetween(dayStart, nextDayStart, snapshotDate)
+                .findUsageSampleBreakdownBetween(dayStart, dayEnd)
                 .stream()
                 .map(row -> {
                     long visiblePlayers = row.getVisiblePlayers();
@@ -115,11 +156,12 @@ public class WynncraftUsageStatsService {
             long uniquePlayers = playerSightingRepository.countUniquePlayersSeenInRange(dayStart, dayEnd);
             long wynnExtrasUsers = playerSightingRepository.countDailyActiveWynnExtrasUsersSeenBetween(dayStart, dayEnd, snapshotDate);
             long sampleCount = playerSightingRepository.countSamplesBetween(dayStart, dayEnd);
+            UsageSampleStats sampleStats = buildSampleStats(buildSampleBreakdownUntil(snapshotDate, snapshotInstant));
 
             snapshot.setUniquePlayers(uniquePlayers);
             snapshot.setWynnExtrasUsers(wynnExtrasUsers);
             snapshot.setSampleCount(sampleCount);
-            snapshot.setUsagePercent(uniquePlayers == 0 ? 0.0 : (double) wynnExtrasUsers * 100.0 / uniquePlayers);
+            snapshot.setUsagePercent(sampleStats.sampleCount() == 0 ? 0.0 : sampleStats.averageUsagePercent());
             snapshot.setErrorMessage(null);
 
             usageSnapshotRepository.save(snapshot);
@@ -144,4 +186,16 @@ public class WynncraftUsageStatsService {
             long visiblePlayers,
             long wynnExtrasUsers,
             double usagePercent) {}
+
+    public record UsageSampleStats(
+            long sampleCount,
+            double averageUsagePercent,
+            double lowestUsagePercent,
+            double highestUsagePercent,
+            long averageVisiblePlayers,
+            long averageWynnExtrasUsers) {
+        public static UsageSampleStats empty() {
+            return new UsageSampleStats(0, 0.0, 0.0, 0.0, 0, 0);
+        }
+    }
 }

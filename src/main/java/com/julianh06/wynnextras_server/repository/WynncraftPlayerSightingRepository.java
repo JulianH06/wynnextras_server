@@ -40,23 +40,25 @@ public interface WynncraftPlayerSightingRepository extends JpaRepository<Wynncra
             """)
     long countUniquePlayersSeenInRange(@Param("start") Instant start, @Param("end") Instant end);
 
-    @Query("""
-            SELECT s.sampledAt AS sampledAt,
-                   COUNT(DISTINCT s.playerUuid) AS visiblePlayers,
-                   COUNT(DISTINCT d.userUuid) AS wynnExtrasUsers
-            FROM WynncraftPlayerSighting s
-            LEFT JOIN DailyUserActivity d
-              ON d.activityDate = :activityDate
-             AND d.userUuid = s.playerUuid
-            WHERE s.sampledAt >= :start
-              AND s.sampledAt < :end
-            GROUP BY s.sampledAt
-            ORDER BY s.sampledAt ASC
-            """)
+    @Query(value = """
+            SELECT s.sampled_at AS "sampledAt",
+                   COUNT(DISTINCT s.player_uuid) AS "visiblePlayers",
+                   COUNT(DISTINCT CASE WHEN EXISTS (
+                       SELECT 1
+                       FROM daily_user_activity d
+                       WHERE d.user_uuid = s.player_uuid
+                         AND d.first_heartbeat_at <= s.sampled_at
+                         AND d.last_heartbeat_at >= s.sampled_at - INTERVAL '24 hours'
+                   ) THEN s.player_uuid END) AS "wynnExtrasUsers"
+            FROM wynncraft_player_sighting s
+            WHERE s.sampled_at >= :start
+              AND s.sampled_at < :end
+            GROUP BY s.sampled_at
+            ORDER BY s.sampled_at ASC
+            """, nativeQuery = true)
     List<UsageSampleBreakdownRow> findUsageSampleBreakdownBetween(
             @Param("start") Instant start,
-            @Param("end") Instant end,
-            @Param("activityDate") LocalDate activityDate);
+            @Param("end") Instant end);
 
     @Modifying
     @Query("DELETE FROM WynncraftPlayerSighting s WHERE s.sampledAt < :cutoff")

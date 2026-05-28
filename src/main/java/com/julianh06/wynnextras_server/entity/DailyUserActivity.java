@@ -7,6 +7,8 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "daily_user_activity", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"activity_date", "user_uuid"})
+}, indexes = {
+        @Index(name = "idx_daily_activity_user_last_heartbeat", columnList = "user_uuid,last_heartbeat_at")
 })
 public class DailyUserActivity {
     @Id
