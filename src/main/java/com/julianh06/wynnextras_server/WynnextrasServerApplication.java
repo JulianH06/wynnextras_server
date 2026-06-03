@@ -324,28 +324,31 @@ public class WynnextrasServerApplication {
 			guildTags.add(s.getGuildTag());
 			guildByDateTag.computeIfAbsent(day, ignored -> new LinkedHashMap<>()).put(s.getGuildTag(), s);
 		}
-		StringBuilder c10l = new StringBuilder(), c10datasets = new StringBuilder(), c11datasets = new StringBuilder();
+		StringBuilder c10l = new StringBuilder(), c10datasets = new StringBuilder();
+		StringBuilder c11AllDatasets = new StringBuilder(), c11Active7dDatasets = new StringBuilder(), c11Active14dDatasets = new StringBuilder();
 		for (String day : guildDates) appendCsv(c10l, jsQuote(day));
 		int guildColorIndex = 0;
 		for (String tag : guildTags) {
 			String color = pieColors[guildColorIndex % pieColors.length].replace("0.7", "0.9");
 			StringBuilder activeData = new StringBuilder();
-			StringBuilder adoptionData = new StringBuilder();
+			StringBuilder adoptionAllData = new StringBuilder(), adoption7dData = new StringBuilder(), adoption14dData = new StringBuilder();
 			for (String day : guildDates) {
 				GuildUserSnapshot s = guildByDateTag.getOrDefault(day, Map.of()).get(tag);
 				appendCsv(activeData, s == null || s.getErrorMessage() != null ? "null" : Integer.toString(s.getActive7d()));
 				if (s == null || s.getErrorMessage() != null || s.getMemberCount() == 0) {
-					appendCsv(adoptionData, "null");
+					appendCsv(adoptionAllData, "null");
+					appendCsv(adoption7dData, "null");
+					appendCsv(adoption14dData, "null");
 				} else {
-					double pct = (double) s.getWynnExtrasUsersTotal() * 100.0 / s.getMemberCount();
-					appendCsv(adoptionData, String.format("%.1f", pct).replace(',', '.'));
+					appendCsv(adoptionAllData, formatNumber((double) s.getWynnExtrasUsersTotal() * 100.0 / s.getMemberCount(), 1));
+					appendCsv(adoption7dData, formatNumber((double) s.getActive7d() * 100.0 / s.getMemberCount(), 1));
+					appendCsv(adoption14dData, formatNumber((double) s.getActive14d() * 100.0 / s.getMemberCount(), 1));
 				}
 			}
-			if (c10datasets.length() > 0) { c10datasets.append(","); c11datasets.append(","); }
-			c10datasets.append("{ label:").append(jsQuote(tag)).append(", data:[").append(activeData)
-					.append("], borderColor:").append(jsQuote(color)).append(", backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }");
-			c11datasets.append("{ label:").append(jsQuote(tag)).append(", data:[").append(adoptionData)
-					.append("], borderColor:").append(jsQuote(color)).append(", backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }");
+			appendLineDataset(c10datasets, tag, activeData, color);
+			appendLineDataset(c11AllDatasets, tag, adoptionAllData, color);
+			appendLineDataset(c11Active7dDatasets, tag, adoption7dData, color);
+			appendLineDataset(c11Active14dDatasets, tag, adoption14dData, color);
 			guildColorIndex++;
 		}
 
@@ -384,13 +387,16 @@ public class WynnextrasServerApplication {
 				  .guild-chart-controls { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
 				  .guild-chart-chip { font-family:'Share Tech Mono',monospace; font-size:10px; padding:5px 9px; border-radius:4px; border:1px solid #2a3545; background:transparent; color:#4a6080; cursor:pointer; white-space:nowrap; }
 				  .guild-chart-chip.gchip-active { border-color:#00c8ff; color:#00c8ff; background:rgba(0,200,255,0.08); }
+				  .usage-sample-stats { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
+				  .usage-sample-stat { border:1px solid #1e2530; border-radius:4px; padding:5px 8px; color:#4a6080; font-size:10px; white-space:nowrap; }
+				  .usage-sample-stat strong { color:#c8d8e8; font-weight:400; }
 				  .metric-grid { display:grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap:12px; max-width:1200px; margin-bottom:20px; }
 				  .metric { background:#111419; border:1px solid #1e2530; border-radius:8px; padding:14px; }
 				  .metric-label { color:#4a6080; font-size:9px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
 				  .metric-value { color:#c8d8e8; font-size:22px; }
 				  .user-list { font-size: 12px; line-height: 1.9; margin-top: 32px; max-width: 1200px; color: #8aa0b8; }
 				  @media (max-width: 900px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-				  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } .card-header { align-items:flex-start; flex-direction:column; } .timeline-controls, .guild-chart-controls { justify-content:flex-start; } }
+				  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } .card-header { align-items:flex-start; flex-direction:column; } .timeline-controls, .guild-chart-controls, .usage-sample-stats { justify-content:flex-start; } }
 				</style>
 				</head>
 				<body>
@@ -429,7 +435,7 @@ public class WynnextrasServerApplication {
 		// Snapshot/activity charts
 		sb.append("<div class=\"card\"><div class=\"card-title\">Active users snapshots (daily 01:00 UTC)</div><canvas id=\"c6\" height=\"80\"></canvas></div>");
 		sb.append("<div class=\"card\"><div class=\"card-title\">WynnExtras usage of active Wynncraft players (snapshot day UTC)</div><canvas id=\"c6b\" height=\"80\"></canvas></div>");
-		sb.append("<div class=\"card\"><div id=\"c6b-detail-title\" class=\"card-title\">WynnExtras usage by sample (UTC)</div><canvas id=\"c6b-detail\" height=\"90\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-header\"><div id=\"c6b-detail-title\" class=\"card-title\">WynnExtras usage by sample (UTC)</div><div id=\"usage-sample-stats\" class=\"usage-sample-stats\"></div></div><canvas id=\"c6b-detail\" height=\"90\"></canvas></div>");
 		sb.append("<div class=\"grid grid-2\">");
 		sb.append("<div class=\"card\"><div class=\"card-title\">Heartbeat volume per day (UTC)</div><canvas id=\"c7\" height=\"130\"></canvas></div>");
 		sb.append("<div class=\"card\"><div class=\"card-title\">New / returned users per day (UTC)</div><canvas id=\"c8\" height=\"130\"></canvas></div>");
@@ -455,6 +461,9 @@ public class WynnextrasServerApplication {
 				    <div id="guild-chart-title" class="card-title">Tracked guilds - active last 7 days</div>
 				    <div class="guild-chart-controls">
 				      <button id="guild-chart-mode" class="guild-chart-chip gchip-active" onclick="toggleGuildChartMode()">Mode: Total</button>
+				      <button class="guild-chart-chip guild-adoption-chip" data-p="all" onclick="setGuildAdoptionPeriod('all')">Adoption: All</button>
+				      <button class="guild-chart-chip guild-adoption-chip" data-p="7d" onclick="setGuildAdoptionPeriod('7d')">Adoption: 7D</button>
+				      <button class="guild-chart-chip guild-adoption-chip" data-p="14d" onclick="setGuildAdoptionPeriod('14d')">Adoption: 14D</button>
 				      <button id="guild-chart-toggle-all" class="guild-chart-chip" onclick="toggleGuildDatasets()">Hide all</button>
 				    </div>
 				  </div>
@@ -534,14 +543,15 @@ public class WynnextrasServerApplication {
 				.append("{ label:'14d', data:[").append(c6d14).append("], borderColor:'#64a0ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }")
 				.append("] }, options:opts() });\n");
 
-		sb.append("const c6bLabels=[").append(c6bl).append("]; const c6bUsers=[").append(c6bUsers)
+		sb.append("const c6bPct=[").append(c6bpct).append("]; const c6bLabels=[").append(c6bl).append("]; const c6bUsers=[").append(c6bUsers)
 				.append("]; const c6bVisible=[").append(c6bVisible).append("]; const c6bOnline=[").append(c6bOnline)
 				.append("]; const c6bSamples=[").append(c6bSamples).append("]; const c6bLowest=[").append(c6bLowest)
 				.append("]; const c6bHighest=[").append(c6bHighest).append("]; const c6bSampleBreakdowns=")
 				.append(c6bSampleBreakdowns).append(";\n");
-		sb.append("const c6bChart=new Chart(document.getElementById('c6b'),{ type:'line', data:{ labels:c6bLabels, datasets:[{ label:'WynnExtras usage %', data:[")
-				.append(c6bpct)
-				.append("], borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ onClick:function(evt,elements){ if(elements.length){ setUsageSampleDay(elements[0].index); } }, scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const i=ctx.dataIndex; if (ctx.raw == null) return ' snapshot error'; const online = c6bOnline[i] == null ? 'unknown' : c6bOnline[i]; const low = c6bLowest[i] == null ? 'n/a' : c6bLowest[i].toFixed(2)+'%'; const high = c6bHighest[i] == null ? 'n/a' : c6bHighest[i].toFixed(2)+'%'; return ' '+ctx.raw.toFixed(2)+'% avg ('+c6bSamples[i]+' samples, lowest '+low+', highest '+high+', avg '+c6bUsers[i]+' / '+c6bVisible[i]+' visible players, '+online+' total online players)'; } } } } }) });\n");
+		sb.append("function usageSampleRangeStats(days){ const cutoff=days == null ? -Infinity : Date.now()-days*86400*1000; let low=null, high=null; c6bLabels.forEach((label,i)=>{ const dayEnd=Date.parse(label+'T23:59:59Z'); const lowValue=c6bLowest[i] == null ? c6bPct[i] : c6bLowest[i]; const highValue=c6bHighest[i] == null ? c6bPct[i] : c6bHighest[i]; if(Number.isNaN(dayEnd) || dayEnd < cutoff || lowValue == null || highValue == null) return; low=low == null ? lowValue : Math.min(low,lowValue); high=high == null ? highValue : Math.max(high,highValue); }); return {low,high}; }\n");
+		sb.append("function usageSampleStatHtml(label, stats){ const value=stats.low == null || stats.high == null ? 'n/a' : 'Low '+stats.low.toFixed(2)+'% / High '+stats.high.toFixed(2)+'%'; return '<div class=\"usage-sample-stat\">'+label+': <strong>'+value+'</strong></div>'; }\n");
+		sb.append("document.getElementById('usage-sample-stats').innerHTML = usageSampleStatHtml('All time', usageSampleRangeStats(null)) + usageSampleStatHtml('7D', usageSampleRangeStats(7)) + usageSampleStatHtml('14D', usageSampleRangeStats(14));\n");
+		sb.append("const c6bChart=new Chart(document.getElementById('c6b'),{ type:'line', data:{ labels:c6bLabels, datasets:[{ label:'WynnExtras usage %', data:c6bPct, borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ onClick:function(evt,elements){ if(elements.length){ setUsageSampleDay(elements[0].index); } }, scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const i=ctx.dataIndex; if (ctx.raw == null) return ' snapshot error'; const online = c6bOnline[i] == null ? 'unknown' : c6bOnline[i]; const low = c6bLowest[i] == null ? 'n/a' : c6bLowest[i].toFixed(2)+'%'; const high = c6bHighest[i] == null ? 'n/a' : c6bHighest[i].toFixed(2)+'%'; return ' '+ctx.raw.toFixed(2)+'% avg ('+c6bSamples[i]+' samples, lowest '+low+', highest '+high+', avg '+c6bUsers[i]+' / '+c6bVisible[i]+' visible players, '+online+' total online players)'; } } } } }) });\n");
 		sb.append("const c6bDetailTitle=document.getElementById('c6b-detail-title'); const c6bDetailChart=new Chart(document.getElementById('c6b-detail'),{ type:'line', data:{ labels:[], datasets:[{ label:'Sample usage %', data:[], borderColor:'#00c8ff', backgroundColor:'rgba(0,200,255,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:24}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const row=(c6bDetailChart.$rows||[])[ctx.dataIndex]; if(!row) return ''; return ' '+ctx.raw.toFixed(2)+'% ('+row.users+' / '+row.visible+' visible players)'; }, title:function(items){ const row=(c6bDetailChart.$rows||[])[items[0]?.dataIndex]; return row ? row.ts : ''; } } } } }) });\n");
 		sb.append("function setUsageSampleDay(index){ if(index == null || index < 0 || index >= c6bLabels.length) return; const day=c6bLabels[index]; const rows=c6bSampleBreakdowns[day] || []; c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+(rows.length ? '' : ' - no samples'); c6bDetailChart.$rows=rows; c6bDetailChart.data.labels=rows.map(r=>r.t); c6bDetailChart.data.datasets[0].data=rows.map(r=>r.pct); c6bDetailChart.update(); c6bChart.data.datasets[0].pointRadius=c6bLabels.map((_,i)=>i===index?5:2); c6bChart.update(); }\n");
 		sb.append("const initialUsageSampleIndex=c6bLabels.map((_,i)=>i).reverse().find(i=>(c6bSampleBreakdowns[c6bLabels[i]] || []).length > 0); setUsageSampleDay(initialUsageSampleIndex === undefined ? c6bLabels.length - 1 : initialUsageSampleIndex);\n");
@@ -580,18 +590,24 @@ public class WynnextrasServerApplication {
 		// Chart 10 script
 		sb.append("const guildTimelineData = {")
 				.append("total:{ title:'Tracked guilds - active last 7 days', yLabel:'Active users', labels:[").append(c10l).append("], datasets:[").append(c10datasets).append("] },")
-				.append("percent:{ title:'Tracked guilds - WynnExtras adoption %', yLabel:'Adoption %', labels:[").append(c10l).append("], datasets:[").append(c11datasets).append("] }")
+				.append("percentAll:{ title:'Tracked guilds - WynnExtras adoption % (all time)', yLabel:'Adoption %', labels:[").append(c10l).append("], datasets:[").append(c11AllDatasets).append("] },")
+				.append("percent7d:{ title:'Tracked guilds - WynnExtras adoption % (7d)', yLabel:'Adoption %', labels:[").append(c10l).append("], datasets:[").append(c11Active7dDatasets).append("] },")
+				.append("percent14d:{ title:'Tracked guilds - WynnExtras adoption % (14d)', yLabel:'Adoption %', labels:[").append(c10l).append("], datasets:[").append(c11Active14dDatasets).append("] }")
 				.append("};\n")
 				.append("let guildChartMode = 'total';\n")
+				.append("let guildAdoptionPeriod = 'all';\n")
 				.append("const guildDatasetVisible = {};\n")
-				.append("function copyGuildTimelineData(mode) { return { labels:[...guildTimelineData[mode].labels], datasets:guildTimelineData[mode].datasets.map(d => ({...d, data:[...d.data], hidden:guildDatasetVisible[d.label] === false})) }; }\n")
+				.append("function guildTimelineKey() { return guildChartMode === 'total' ? 'total' : 'percent' + (guildAdoptionPeriod === 'all' ? 'All' : guildAdoptionPeriod === '7d' ? '7d' : '14d'); }\n")
+				.append("function copyGuildTimelineData(key) { return { labels:[...guildTimelineData[key].labels], datasets:guildTimelineData[key].datasets.map(d => ({...d, data:[...d.data], hidden:guildDatasetVisible[d.label] === false})) }; }\n")
 				.append("const guildOptions = opts();\n")
 				.append("guildOptions.plugins.legend.onClick = function(e, legendItem, legend) { const chart = legend.chart; const i = legendItem.datasetIndex; const dataset = chart.data.datasets[i]; const nextVisible = !chart.isDatasetVisible(i); dataset.hidden = !nextVisible; guildDatasetVisible[dataset.label] = nextVisible; chart.update(); updateGuildToggleButton(); };\n")
 				.append("guildOptions.scales.y.title = { display:true, text:guildTimelineData.total.yLabel, color:'#4a6080' };\n")
 				.append("const guildChart = new Chart(document.getElementById('c10'),{ type:'line', data:copyGuildTimelineData('total'), options:guildOptions });\n")
 				.append("function captureGuildDatasetVisibility() { guildChart.data.datasets.forEach((d, i) => guildDatasetVisible[d.label] = guildChart.isDatasetVisible(i)); }\n")
-				.append("function setGuildChartMode(mode) { captureGuildDatasetVisibility(); guildChartMode = mode; guildChart.data = copyGuildTimelineData(mode); document.getElementById('guild-chart-title').textContent = guildTimelineData[mode].title; document.getElementById('guild-chart-mode').textContent = mode === 'total' ? 'Mode: Total' : 'Mode: Percent'; guildChart.options.scales.y.title.text = guildTimelineData[mode].yLabel; if (mode === 'percent') { guildChart.options.scales.y.max = 100; } else { delete guildChart.options.scales.y.max; } guildChart.update(); updateGuildToggleButton(); }\n")
+				.append("function refreshGuildChart() { const key=guildTimelineKey(); guildChart.data = copyGuildTimelineData(key); document.getElementById('guild-chart-title').textContent = guildTimelineData[key].title; document.getElementById('guild-chart-mode').textContent = guildChartMode === 'total' ? 'Mode: Total' : 'Mode: Percent'; document.getElementById('guild-chart-mode').classList.toggle('gchip-active', guildChartMode === 'total'); document.querySelectorAll('.guild-adoption-chip').forEach(c => c.classList.toggle('gchip-active', guildChartMode === 'percent' && c.dataset.p === guildAdoptionPeriod)); guildChart.options.scales.y.title.text = guildTimelineData[key].yLabel; if (guildChartMode === 'percent') { guildChart.options.scales.y.max = 100; } else { delete guildChart.options.scales.y.max; } guildChart.update(); updateGuildToggleButton(); }\n")
+				.append("function setGuildChartMode(mode) { captureGuildDatasetVisibility(); guildChartMode = mode; refreshGuildChart(); }\n")
 				.append("function toggleGuildChartMode() { setGuildChartMode(guildChartMode === 'total' ? 'percent' : 'total'); }\n")
+				.append("function setGuildAdoptionPeriod(period) { captureGuildDatasetVisibility(); guildAdoptionPeriod = period; guildChartMode = 'percent'; refreshGuildChart(); }\n")
 				.append("function updateGuildToggleButton() { const anyVisible = guildChart.data.datasets.some((d, i) => guildChart.isDatasetVisible(i)); document.getElementById('guild-chart-toggle-all').textContent = anyVisible ? 'Hide all' : 'Show all'; }\n")
 				.append("function toggleGuildDatasets() { const anyVisible = guildChart.data.datasets.some((d, i) => guildChart.isDatasetVisible(i)); const nextVisible = !anyVisible; guildChart.data.datasets.forEach(d => { d.hidden = !nextVisible; guildDatasetVisible[d.label] = nextVisible; }); guildChart.update(); updateGuildToggleButton(); }\n");
 
@@ -755,6 +771,14 @@ public class WynnextrasServerApplication {
 				.append("], backgroundColor:").append(jsQuote(color))
 				.append(", borderColor:").append(jsQuote(color))
 				.append(", borderWidth:0, barPercentage:1.0, categoryPercentage:1.0, stack:'versions' }");
+	}
+
+	private static void appendLineDataset(StringBuilder sb, String label, StringBuilder data, String color) {
+		if (sb.length() > 0) sb.append(",");
+		sb.append("{ label:").append(jsQuote(label))
+				.append(", data:[").append(data)
+				.append("], borderColor:").append(jsQuote(color))
+				.append(", backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }");
 	}
 
 	private static String jsQuote(String value) {
