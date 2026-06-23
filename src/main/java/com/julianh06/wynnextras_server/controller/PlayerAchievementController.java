@@ -77,6 +77,7 @@ public class PlayerAchievementController {
             String verifiedUsername = session.username;
 
             achievementRepo.deleteByPlayerUuid(verifiedUuid);
+            achievementRepo.flush();
 
             for (NormalizedAchievement normalizedAchievement : achievements) {
                 PlayerAchievementDto.AchievementData achievement = normalizedAchievement.data();
