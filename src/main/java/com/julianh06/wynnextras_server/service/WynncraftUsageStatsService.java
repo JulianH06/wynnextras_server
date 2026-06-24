@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 
@@ -165,7 +164,6 @@ public class WynncraftUsageStatsService {
             snapshot.setErrorMessage(null);
 
             usageSnapshotRepository.save(snapshot);
-            playerSightingRepository.deleteBySampledAtBefore(snapshotInstant.minus(14, ChronoUnit.DAYS));
         } catch (Exception e) {
             snapshot.setErrorMessage(e.getMessage());
             usageSnapshotRepository.save(snapshot);
