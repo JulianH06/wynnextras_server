@@ -24,6 +24,12 @@ public class WynnExtrasUser {
     @Column(nullable = false, length = 32)
     private String modVersion; // Version of WynnExtras they're using
 
+    @Column(nullable = false, length = 32, columnDefinition = "varchar(32) default 'skull'")
+    private String badgeIconId = "skull";
+
+    @Column(nullable = false, length = 32, columnDefinition = "varchar(32) default 'gold'")
+    private String badgeColorId = "gold";
+
     @Column(nullable = false)
     private Instant createdAt; // When user first registered
 
@@ -49,6 +55,12 @@ public class WynnExtrasUser {
 
     public String getModVersion() { return modVersion; }
     public void setModVersion(String modVersion) { this.modVersion = modVersion; }
+
+    public String getBadgeIconId() { return badgeIconId; }
+    public void setBadgeIconId(String badgeIconId) { this.badgeIconId = badgeIconId; }
+
+    public String getBadgeColorId() { return badgeColorId; }
+    public void setBadgeColorId(String badgeColorId) { this.badgeColorId = badgeColorId; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

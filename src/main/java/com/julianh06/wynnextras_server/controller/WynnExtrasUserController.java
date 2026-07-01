@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Controller for WynnExtras user badge (⭐) system.
@@ -33,6 +34,14 @@ import java.util.Optional;
 public class WynnExtrasUserController {
     private static final Logger logger = LoggerFactory.getLogger(WynnExtrasUserController.class);
     private static final Duration ACTIVE_THRESHOLD = Duration.ofDays(7);
+    private static final String DEFAULT_BADGE_ICON_ID = "skull";
+    private static final String DEFAULT_BADGE_COLOR_ID = "gold";
+    private static final Set<String> VALID_BADGE_ICON_IDS = Set.of(
+            "skull", "star", "radiant", "crown", "spark", "mythic", "tna", "notg", "nol", "twp", "tcc"
+    );
+    private static final Set<String> VALID_BADGE_COLOR_IDS = Set.of(
+            "gold", "white", "gray", "aqua", "purple", "green", "copper", "class", "pale_blue"
+    );
 
     @Autowired
     private WynnExtrasUserRepository userRepository;
@@ -71,6 +80,8 @@ public class WynnExtrasUserController {
         String verifiedUuid = session.uuid;
         String verifiedUsername = session.username;
         String modVersion = request.getModVersion().trim();
+        String badgeIconId = normalizeBadgeIconId(request.getBadgeIconId());
+        String badgeColorId = normalizeBadgeColorId(request.getBadgeColorId());
         Instant heartbeatAt = Instant.now();
 
         try {
@@ -82,12 +93,16 @@ public class WynnExtrasUserController {
                 WynnExtrasUser user = existingUser.get();
                 user.setUsername(verifiedUsername); // Update username in case it changed
                 user.setModVersion(modVersion);
+                user.setBadgeIconId(badgeIconId);
+                user.setBadgeColorId(badgeColorId);
                 user.setLastSeen(heartbeatAt);
                 userRepository.save(user);
                 logger.debug("Updated heartbeat for user {} ({})", verifiedUsername, verifiedUuid);
             } else {
                 // Create new user
                 WynnExtrasUser user = new WynnExtrasUser(verifiedUuid, verifiedUsername, modVersion);
+                user.setBadgeIconId(badgeIconId);
+                user.setBadgeColorId(badgeColorId);
                 user.setLastSeen(heartbeatAt);
                 user.setCreatedAt(heartbeatAt);
                 userRepository.save(user);
@@ -120,6 +135,23 @@ public class WynnExtrasUserController {
         dailyUserActivityRepository.save(activity);
     }
 
+    private String normalizeBadgeIconId(String badgeIconId) {
+        return normalizeCatalogId(badgeIconId, VALID_BADGE_ICON_IDS, DEFAULT_BADGE_ICON_ID);
+    }
+
+    private String normalizeBadgeColorId(String badgeColorId) {
+        return normalizeCatalogId(badgeColorId, VALID_BADGE_COLOR_IDS, DEFAULT_BADGE_COLOR_ID);
+    }
+
+    private String normalizeCatalogId(String value, Set<String> validIds, String defaultId) {
+        if (value == null) {
+            return defaultId;
+        }
+
+        String normalized = value.trim();
+        return validIds.contains(normalized) ? normalized : defaultId;
+    }
+
     /**
      * Get list of active WynnExtras user UUIDs
      * GET /wynnextras-users/active
@@ -131,11 +163,18 @@ public class WynnExtrasUserController {
     public ResponseEntity<?> getActiveUsers() {
         try {
             Instant cutoff = Instant.now().minus(ACTIVE_THRESHOLD);
-            List<String> activeUuids = userRepository.findActiveUuidsSince(cutoff);
+            List<WynnExtrasUser> activeUsers = userRepository.findActiveUsersSince(cutoff);
+            List<String> activeUuids = activeUsers.stream()
+                .map(WynnExtrasUser::getUuid)
+                .toList();
+            List<BadgeInfo> badges = activeUsers.stream()
+                .map(this::toBadgeInfo)
+                .toList();
 
             return ResponseEntity.ok(Map.of(
                 "uuids", activeUuids,
-                "count", activeUuids.size()
+                "count", activeUuids.size(),
+                "badges", badges
             ));
         } catch (Exception e) {
             logger.error("Error fetching active users", e);
@@ -155,7 +194,14 @@ public class WynnExtrasUserController {
             List<WynnExtrasUser> activeUsers = userRepository.findActiveUsersSince(cutoff);
 
             List<UserInfo> userInfos = activeUsers.stream()
-                .map(u -> new UserInfo(u.getUuid(), u.getUsername(), u.getModVersion(), u.getLastSeen().toEpochMilli()))
+                .map(u -> new UserInfo(
+                        u.getUuid(),
+                        u.getUsername(),
+                        u.getModVersion(),
+                        u.getLastSeen().toEpochMilli(),
+                        normalizeBadgeIconId(u.getBadgeIconId()),
+                        normalizeBadgeColorId(u.getBadgeColorId())
+                ))
                 .toList();
 
             return ResponseEntity.ok(Map.of(
@@ -196,9 +242,17 @@ public class WynnExtrasUserController {
 
     public static class HeartbeatRequest {
         private String modVersion;
+        private String badgeIconId;
+        private String badgeColorId;
 
         public String getModVersion() { return modVersion; }
         public void setModVersion(String modVersion) { this.modVersion = modVersion; }
+
+        public String getBadgeIconId() { return badgeIconId; }
+        public void setBadgeIconId(String badgeIconId) { this.badgeIconId = badgeIconId; }
+
+        public String getBadgeColorId() { return badgeColorId; }
+        public void setBadgeColorId(String badgeColorId) { this.badgeColorId = badgeColorId; }
     }
 
     public static class UserInfo {
@@ -206,18 +260,52 @@ public class WynnExtrasUserController {
         private String username;
         private String modVersion;
         private long lastSeen;
+        private String badgeIconId;
+        private String badgeColorId;
 
-        public UserInfo(String uuid, String username, String modVersion, long lastSeen) {
+        public UserInfo(String uuid, String username, String modVersion, long lastSeen, String badgeIconId, String badgeColorId) {
             this.uuid = uuid;
             this.username = username;
             this.modVersion = modVersion;
             this.lastSeen = lastSeen;
+            this.badgeIconId = badgeIconId;
+            this.badgeColorId = badgeColorId;
         }
 
         public String getUuid() { return uuid; }
         public String getUsername() { return username; }
         public String getModVersion() { return modVersion; }
         public long getLastSeen() { return lastSeen; }
+        public String getBadgeIconId() { return badgeIconId; }
+        public String getBadgeColorId() { return badgeColorId; }
+    }
+
+    public static class BadgeInfo {
+        private String uuid;
+        private String username;
+        private String iconId;
+        private String colorId;
+
+        public BadgeInfo(String uuid, String username, String iconId, String colorId) {
+            this.uuid = uuid;
+            this.username = username;
+            this.iconId = iconId;
+            this.colorId = colorId;
+        }
+
+        public String getUuid() { return uuid; }
+        public String getUsername() { return username; }
+        public String getIconId() { return iconId; }
+        public String getColorId() { return colorId; }
+    }
+
+    private BadgeInfo toBadgeInfo(WynnExtrasUser user) {
+        return new BadgeInfo(
+                user.getUuid(),
+                user.getUsername(),
+                normalizeBadgeIconId(user.getBadgeIconId()),
+                normalizeBadgeColorId(user.getBadgeColorId())
+        );
     }
 
     // Helper Map class for response building
