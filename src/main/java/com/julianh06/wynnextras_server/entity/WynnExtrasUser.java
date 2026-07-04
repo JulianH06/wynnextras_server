@@ -1,5 +1,6 @@
 package com.julianh06.wynnextras_server.entity;
 
+import com.julianh06.wynnextras_server.util.BadgeCatalog;
 import jakarta.persistence.*;
 import java.time.Instant;
 
@@ -24,11 +25,11 @@ public class WynnExtrasUser {
     @Column(nullable = false, length = 32)
     private String modVersion; // Version of WynnExtras they're using
 
-    @Column(nullable = false, length = 32, columnDefinition = "varchar(32) default 'skull'")
-    private String badgeIconId = "skull";
+    @Column(nullable = false, length = 32, columnDefinition = "varchar(32) default '" + BadgeCatalog.DEFAULT_BADGE_ICON_ID + "'")
+    private String badgeIconId = BadgeCatalog.DEFAULT_BADGE_ICON_ID;
 
-    @Column(nullable = false, length = 32, columnDefinition = "varchar(32) default 'gold'")
-    private String badgeColorId = "gold";
+    @Column(nullable = false, length = 32, columnDefinition = "varchar(32) default '" + BadgeCatalog.DEFAULT_BADGE_COLOR_ID + "'")
+    private String badgeColorId = BadgeCatalog.DEFAULT_BADGE_COLOR_ID;
 
     @Column(nullable = false)
     private Instant createdAt; // When user first registered

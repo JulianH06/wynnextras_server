@@ -7,90 +7,68 @@ import java.util.List;
 public class PlayerAchievementDto {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class AchievementData {
+    public static class AchievementState {
         private String id;
-        private String title;
-        private String description;
-        private String type;
-        private boolean secret;
-        private boolean unlocked;
-        private String unlockedAt;
-        private int current;
-        private Integer target;
-        private Integer currentLevel;
-        private List<Integer> levelTargets;
+        private Boolean unlocked;
+        private Integer current;
 
-        public AchievementData() {}
+        public AchievementState() {}
 
-        public AchievementData(String id, String title, String description, String type, boolean secret, boolean unlocked,
-                               String unlockedAt, int current, Integer target, Integer currentLevel, List<Integer> levelTargets) {
+        public AchievementState(String id, Boolean unlocked, Integer current) {
             this.id = id;
-            this.title = title;
-            this.description = description;
-            this.type = type;
-            this.secret = secret;
             this.unlocked = unlocked;
-            this.unlockedAt = unlockedAt;
             this.current = current;
-            this.target = target;
-            this.currentLevel = currentLevel;
-            this.levelTargets = levelTargets;
         }
 
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
 
-        public String getTitle() { return title; }
-        public void setTitle(String title) { this.title = title; }
+        public Boolean getUnlocked() { return unlocked; }
+        public void setUnlocked(Boolean unlocked) { this.unlocked = unlocked; }
 
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
+        public Integer getCurrent() { return current; }
+        public void setCurrent(Integer current) { this.current = current; }
+    }
 
-        public String getType() { return type; }
-        public void setType(String type) { this.type = type; }
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class AchievementData {
+        private String id;
+        private boolean unlocked;
+        private int current;
 
-        public boolean isSecret() { return secret; }
-        public void setSecret(boolean secret) { this.secret = secret; }
+        public AchievementData() {}
+
+        public AchievementData(String id, boolean unlocked, int current) {
+            this.id = id;
+            this.unlocked = unlocked;
+            this.current = current;
+        }
+
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
 
         public boolean isUnlocked() { return unlocked; }
         public void setUnlocked(boolean unlocked) { this.unlocked = unlocked; }
 
-        public String getUnlockedAt() { return unlockedAt; }
-        public void setUnlockedAt(String unlockedAt) { this.unlockedAt = unlockedAt; }
-
         public int getCurrent() { return current; }
         public void setCurrent(int current) { this.current = current; }
-
-        public Integer getTarget() { return target; }
-        public void setTarget(Integer target) { this.target = target; }
-
-        public Integer getCurrentLevel() { return currentLevel; }
-        public void setCurrentLevel(Integer currentLevel) { this.currentLevel = currentLevel; }
-
-        public List<Integer> getLevelTargets() { return levelTargets; }
-        public void setLevelTargets(List<Integer> levelTargets) { this.levelTargets = levelTargets; }
     }
 
     public static class UploadRequest {
+        private Integer schemaVersion;
         private String modVersion;
-        private List<AchievementData> achievements;
-        private List<AchievementData> progressAchievements;
-        private List<AchievementData> tieredAchievements;
+        private List<AchievementState> achievements;
 
         public UploadRequest() {}
+
+        public Integer getSchemaVersion() { return schemaVersion; }
+        public void setSchemaVersion(Integer schemaVersion) { this.schemaVersion = schemaVersion; }
 
         public String getModVersion() { return modVersion; }
         public void setModVersion(String modVersion) { this.modVersion = modVersion; }
 
-        public List<AchievementData> getAchievements() { return achievements; }
-        public void setAchievements(List<AchievementData> achievements) { this.achievements = achievements; }
-
-        public List<AchievementData> getProgressAchievements() { return progressAchievements; }
-        public void setProgressAchievements(List<AchievementData> progressAchievements) { this.progressAchievements = progressAchievements; }
-
-        public List<AchievementData> getTieredAchievements() { return tieredAchievements; }
-        public void setTieredAchievements(List<AchievementData> tieredAchievements) { this.tieredAchievements = tieredAchievements; }
-
+        public List<AchievementState> getAchievements() { return achievements; }
+        public void setAchievements(List<AchievementState> achievements) { this.achievements = achievements; }
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -101,23 +79,17 @@ public class PlayerAchievementDto {
         private long updatedAt;
         private long unlockedCount;
         private List<AchievementData> achievements;
-        private List<AchievementData> progressAchievements;
-        private List<AchievementData> tieredAchievements;
 
         public PlayerAchievementsResponse() {}
 
         public PlayerAchievementsResponse(String playerUuid, String playerName, String modVersion, long updatedAt,
-                                          long unlockedCount, List<AchievementData> achievements,
-                                          List<AchievementData> progressAchievements,
-                                          List<AchievementData> tieredAchievements) {
+                                          long unlockedCount, List<AchievementData> achievements) {
             this.playerUuid = playerUuid;
             this.playerName = playerName;
             this.modVersion = modVersion;
             this.updatedAt = updatedAt;
             this.unlockedCount = unlockedCount;
             this.achievements = achievements;
-            this.progressAchievements = progressAchievements;
-            this.tieredAchievements = tieredAchievements;
         }
 
         public String getPlayerUuid() { return playerUuid; }
@@ -137,13 +109,6 @@ public class PlayerAchievementDto {
 
         public List<AchievementData> getAchievements() { return achievements; }
         public void setAchievements(List<AchievementData> achievements) { this.achievements = achievements; }
-
-        public List<AchievementData> getProgressAchievements() { return progressAchievements; }
-        public void setProgressAchievements(List<AchievementData> progressAchievements) { this.progressAchievements = progressAchievements; }
-
-        public List<AchievementData> getTieredAchievements() { return tieredAchievements; }
-        public void setTieredAchievements(List<AchievementData> tieredAchievements) { this.tieredAchievements = tieredAchievements; }
-
     }
 
     public static class LeaderboardEntry {

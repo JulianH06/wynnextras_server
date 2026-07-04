@@ -5,6 +5,7 @@ import com.julianh06.wynnextras_server.entity.DailyUserActivity;
 import com.julianh06.wynnextras_server.repository.DailyUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
 import com.julianh06.wynnextras_server.service.AuthService;
+import com.julianh06.wynnextras_server.util.BadgeCatalog;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +21,6 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Controller for WynnExtras user badge (⭐) system.
@@ -34,14 +34,6 @@ import java.util.Set;
 public class WynnExtrasUserController {
     private static final Logger logger = LoggerFactory.getLogger(WynnExtrasUserController.class);
     private static final Duration ACTIVE_THRESHOLD = Duration.ofDays(7);
-    private static final String DEFAULT_BADGE_ICON_ID = "skull";
-    private static final String DEFAULT_BADGE_COLOR_ID = "gold";
-    private static final Set<String> VALID_BADGE_ICON_IDS = Set.of(
-            "skull", "star", "radiant", "crown", "spark", "mythic", "tna", "notg", "nol", "twp", "tcc"
-    );
-    private static final Set<String> VALID_BADGE_COLOR_IDS = Set.of(
-            "gold", "white", "gray", "aqua", "purple", "green", "copper", "class", "pale_blue"
-    );
 
     @Autowired
     private WynnExtrasUserRepository userRepository;
@@ -80,8 +72,8 @@ public class WynnExtrasUserController {
         String verifiedUuid = session.uuid;
         String verifiedUsername = session.username;
         String modVersion = request.getModVersion().trim();
-        String badgeIconId = normalizeBadgeIconId(request.getBadgeIconId());
-        String badgeColorId = normalizeBadgeColorId(request.getBadgeColorId());
+        String badgeIconId = BadgeCatalog.normalizeBadgeIconId(request.getBadgeIconId());
+        String badgeColorId = BadgeCatalog.normalizeBadgeColorId(request.getBadgeColorId());
         Instant heartbeatAt = Instant.now();
 
         try {
@@ -135,23 +127,6 @@ public class WynnExtrasUserController {
         dailyUserActivityRepository.save(activity);
     }
 
-    private String normalizeBadgeIconId(String badgeIconId) {
-        return normalizeCatalogId(badgeIconId, VALID_BADGE_ICON_IDS, DEFAULT_BADGE_ICON_ID);
-    }
-
-    private String normalizeBadgeColorId(String badgeColorId) {
-        return normalizeCatalogId(badgeColorId, VALID_BADGE_COLOR_IDS, DEFAULT_BADGE_COLOR_ID);
-    }
-
-    private String normalizeCatalogId(String value, Set<String> validIds, String defaultId) {
-        if (value == null) {
-            return defaultId;
-        }
-
-        String normalized = value.trim();
-        return validIds.contains(normalized) ? normalized : defaultId;
-    }
-
     /**
      * Get list of active WynnExtras user UUIDs
      * GET /wynnextras-users/active
@@ -199,8 +174,8 @@ public class WynnExtrasUserController {
                         u.getUsername(),
                         u.getModVersion(),
                         u.getLastSeen().toEpochMilli(),
-                        normalizeBadgeIconId(u.getBadgeIconId()),
-                        normalizeBadgeColorId(u.getBadgeColorId())
+                        BadgeCatalog.normalizeBadgeIconId(u.getBadgeIconId()),
+                        BadgeCatalog.normalizeBadgeColorId(u.getBadgeColorId())
                 ))
                 .toList();
 
@@ -303,8 +278,8 @@ public class WynnExtrasUserController {
         return new BadgeInfo(
                 user.getUuid(),
                 user.getUsername(),
-                normalizeBadgeIconId(user.getBadgeIconId()),
-                normalizeBadgeColorId(user.getBadgeColorId())
+                BadgeCatalog.normalizeBadgeIconId(user.getBadgeIconId()),
+                BadgeCatalog.normalizeBadgeColorId(user.getBadgeColorId())
         );
     }
 
