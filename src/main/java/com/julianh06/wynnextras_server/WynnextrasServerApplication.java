@@ -429,7 +429,7 @@ public class WynnextrasServerApplication {
 
 		// Snapshot/activity charts
 		sb.append("<div class=\"card\"><div class=\"card-title\">Active users snapshots (daily 01:00 UTC)</div><canvas id=\"c6\" height=\"80\"></canvas></div>");
-		sb.append("<div class=\"card\"><div class=\"card-title\">WynnExtras usage of active Wynncraft players (snapshot day UTC)</div><canvas id=\"c6b\" height=\"80\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-header\"><div class=\"card-title\">WynnExtras usage of active Wynncraft players (snapshot day UTC)</div><div id=\"c6b-load-status\" class=\"usage-sample-stat\">Loading samples: 0/0 days</div></div><canvas id=\"c6b\" height=\"80\"></canvas></div>");
 		sb.append("<div class=\"card\"><div class=\"card-header\"><div id=\"c6b-detail-title\" class=\"card-title\">WynnExtras usage by sample (UTC)</div><div id=\"usage-sample-stats\" class=\"usage-sample-stats\"></div></div><canvas id=\"c6b-detail\" height=\"90\"></canvas></div>");
 		sb.append("<div class=\"grid grid-2\">");
 		sb.append("<div class=\"card\"><div class=\"card-title\">Heartbeat volume per day (UTC)</div><canvas id=\"c7\" height=\"130\"></canvas></div>");
@@ -545,10 +545,14 @@ public class WynnextrasServerApplication {
 				.append(c6bSampleBreakdowns).append(";\n");
 		sb.append("function usageSampleRangeStats(days){ const cutoff=days == null ? -Infinity : Date.now()-days*86400*1000; let low=null, high=null; c6bLabels.forEach((label,i)=>{ const dayEnd=Date.parse(label+'T23:59:59Z'); const lowValue=c6bLowest[i] == null ? c6bPct[i] : c6bLowest[i]; const highValue=c6bHighest[i] == null ? c6bPct[i] : c6bHighest[i]; if(Number.isNaN(dayEnd) || dayEnd < cutoff || lowValue == null || highValue == null) return; low=low == null ? lowValue : Math.min(low,lowValue); high=high == null ? highValue : Math.max(high,highValue); }); return {low,high}; }\n");
 		sb.append("function usageSampleStatHtml(label, stats){ const value=stats.low == null || stats.high == null ? 'n/a' : 'Low '+stats.low.toFixed(2)+'% / High '+stats.high.toFixed(2)+'%'; return '<div class=\"usage-sample-stat\">'+label+': <strong>'+value+'</strong></div>'; }\n");
-		sb.append("document.getElementById('usage-sample-stats').innerHTML = usageSampleStatHtml('All time', usageSampleRangeStats(null)) + usageSampleStatHtml('7D', usageSampleRangeStats(7)) + usageSampleStatHtml('14D', usageSampleRangeStats(14));\n");
 		sb.append("const c6bChart=new Chart(document.getElementById('c6b'),{ type:'line', data:{ labels:c6bLabels, datasets:[{ label:'WynnExtras usage %', data:c6bPct, borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ onClick:function(evt,elements){ if(elements.length){ setUsageSampleDay(elements[0].index); } }, scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const i=ctx.dataIndex; if (ctx.raw == null) return ' snapshot error'; const online = c6bOnline[i] == null ? 'unknown' : c6bOnline[i]; const low = c6bLowest[i] == null ? 'n/a' : c6bLowest[i].toFixed(2)+'%'; const high = c6bHighest[i] == null ? 'n/a' : c6bHighest[i].toFixed(2)+'%'; return ' '+ctx.raw.toFixed(2)+'% avg ('+c6bSamples[i]+' samples, lowest '+low+', highest '+high+', avg '+c6bUsers[i]+' / '+c6bVisible[i]+' visible players, '+online+' total online players)'; } } } } }) });\n");
 		sb.append("const c6bDetailTitle=document.getElementById('c6b-detail-title'); const c6bDetailChart=new Chart(document.getElementById('c6b-detail'),{ type:'line', data:{ labels:[], datasets:[{ label:'Sample usage %', data:[], borderColor:'#00c8ff', backgroundColor:'rgba(0,200,255,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:24}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const row=(c6bDetailChart.$rows||[])[ctx.dataIndex]; if(!row) return ''; return ' '+ctx.raw.toFixed(2)+'% ('+row.users+' / '+row.visible+' visible players)'; }, title:function(items){ const row=(c6bDetailChart.$rows||[])[items[0]?.dataIndex]; return row ? row.ts : ''; } } } } }) });\n");
-		sb.append("async function setUsageSampleDay(index){ if(index == null || index < 0 || index >= c6bLabels.length) return; const day=c6bLabels[index]; c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+' - loading...'; c6bChart.data.datasets[0].pointRadius=c6bLabels.map((_,i)=>i===index?5:2); c6bChart.update(); try { let rows=c6bSampleBreakdowns[day]; if (!rows) { const response=await fetch('/db/usage-samples?date='+encodeURIComponent(day)); if (!response.ok) throw new Error('HTTP '+response.status); rows=await response.json(); c6bSampleBreakdowns[day]=rows; } c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+(rows.length ? '' : ' - no samples'); c6bDetailChart.$rows=rows; c6bDetailChart.data.labels=rows.map(r=>r.t); c6bDetailChart.data.datasets[0].data=rows.map(r=>r.pct); c6bDetailChart.update(); } catch(error) { c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+' - failed to load'; } }\n");
+		sb.append("const c6bSampleRequests={}; const c6bLoadedSampleDays=new Set(); const c6bFailedSampleDays=new Set(); const c6bLoadStatus=document.getElementById('c6b-load-status'); let c6bBackgroundLoading=true;\n");
+		sb.append("function renderUsageSampleStats(){ const loaded=c6bLoadedSampleDays.size, total=c6bLabels.length, failed=c6bFailedSampleDays.size; c6bLoadStatus.textContent=(c6bBackgroundLoading ? 'Loading samples: ' : 'Samples loaded: ')+loaded+'/'+total+' days'+(failed ? ' ('+failed+' failed)' : ''); document.getElementById('usage-sample-stats').innerHTML = usageSampleStatHtml('All time', usageSampleRangeStats(null)) + usageSampleStatHtml('7D', usageSampleRangeStats(7)) + usageSampleStatHtml('14D', usageSampleRangeStats(14)) + '<div class=\"usage-sample-stat\">Samples: <strong>'+loaded+'/'+total+' days</strong></div>'; }\n");
+		sb.append("function applyUsageSamples(index,rows){ if(c6bLoadedSampleDays.has(index)) return; c6bFailedSampleDays.delete(index); c6bLoadedSampleDays.add(index); if(rows.length){ const pcts=rows.map(r=>Number(r.pct)); c6bPct[index]=pcts.reduce((sum,value)=>sum+value,0)/pcts.length; c6bLowest[index]=Math.min(...pcts); c6bHighest[index]=Math.max(...pcts); c6bUsers[index]=Math.round(rows.reduce((sum,row)=>sum+Number(row.users),0)/rows.length); c6bVisible[index]=Math.round(rows.reduce((sum,row)=>sum+Number(row.visible),0)/rows.length); c6bSamples[index]=rows.length; } c6bChart.data.datasets[0].data=c6bPct; c6bChart.update('none'); renderUsageSampleStats(); }\n");
+		sb.append("async function loadUsageSamples(index){ if(index == null || index < 0 || index >= c6bLabels.length) return null; const day=c6bLabels[index]; if(c6bSampleBreakdowns[day]) return c6bSampleBreakdowns[day]; if(!c6bSampleRequests[day]) c6bSampleRequests[day]=fetch('/db/usage-samples?date='+encodeURIComponent(day)).then(response=>{ if(!response.ok) throw new Error('HTTP '+response.status); return response.json(); }).then(rows=>{ c6bSampleBreakdowns[day]=rows; applyUsageSamples(index,rows); return rows; }).finally(()=>delete c6bSampleRequests[day]); return c6bSampleRequests[day]; }\n");
+		sb.append("async function setUsageSampleDay(index){ if(index == null || index < 0 || index >= c6bLabels.length) return; const day=c6bLabels[index]; c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+' - loading...'; c6bChart.data.datasets[0].pointRadius=c6bLabels.map((_,i)=>i===index?5:2); c6bChart.update('none'); try { const rows=await loadUsageSamples(index); c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+(rows.length ? '' : ' - no samples'); c6bDetailChart.$rows=rows; c6bDetailChart.data.labels=rows.map(r=>r.t); c6bDetailChart.data.datasets[0].data=rows.map(r=>r.pct); c6bDetailChart.update(); } catch(error) { c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+' - failed to load'; } }\n");
+		sb.append("async function loadAllUsageSamples(){ let next=0; async function worker(){ while(next<c6bLabels.length){ const index=next++; try { await loadUsageSamples(index); } catch(error) { c6bFailedSampleDays.add(index); console.warn('Could not load usage samples for '+c6bLabels[index],error); } finally { renderUsageSampleStats(); } } } await Promise.all([worker(),worker()]); c6bBackgroundLoading=false; renderUsageSampleStats(); } renderUsageSampleStats(); loadAllUsageSamples();\n");
 
 		// Chart 7 script
 		sb.append("new Chart(document.getElementById('c7'),{ type:'bar', data:{ labels:[").append(c7l)
@@ -707,7 +711,6 @@ public class WynnextrasServerApplication {
 				  <div class="load-progress" role="progressbar" aria-label="Player list loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="db-user-list-progress" class="load-progress-bar"></div></div>
 				  <div id="db-user-list"></div>
 				  <button id="db-user-list-more" type="button" style="display:none;margin-top:12px;font:inherit;padding:7px 12px;border:1px solid #2a3545;border-radius:5px;background:#111419;color:#c8d8e8;cursor:pointer">Load more</button>
-				  <div id="db-user-list-sentinel" aria-hidden="true" style="height:1px"></div>
 				</div>
 				<script>
 				(() => {
@@ -716,7 +719,6 @@ public class WynnextrasServerApplication {
 				  const progress = document.getElementById('db-user-list-progress');
 				  const progressContainer = progress.parentElement;
 				  const more = document.getElementById('db-user-list-more');
-				  const sentinel = document.getElementById('db-user-list-sentinel');
 				  let page = 0;
 				  let loaded = 0;
 				  let total = null;
@@ -758,6 +760,7 @@ public class WynnextrasServerApplication {
 				        ? (hasNext ? loaded + ' players loaded' : loaded + ' players loaded (all)')
 				        : loaded + ' of ' + total + ' players loaded (' + Math.round(loaded * 100 / total) + '%)';
 				      more.style.display = hasNext ? '' : 'none';
+				      if (hasNext) window.setTimeout(loadPlayers, 100);
 				    } catch (error) {
 				      status.textContent = 'Could not load players: ' + error.message;
 				      more.style.display = '';
@@ -768,11 +771,6 @@ public class WynnextrasServerApplication {
 				  }
 
 				  more.addEventListener('click', loadPlayers);
-				  if ('IntersectionObserver' in window) {
-				    new IntersectionObserver(entries => {
-				      if (entries.some(entry => entry.isIntersecting)) loadPlayers();
-				    }, { rootMargin: '300px' }).observe(sentinel);
-				  }
 				  loadPlayers();
 				})();
 				</script>
