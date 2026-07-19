@@ -60,4 +60,46 @@ public interface DailyUserActivityRepository extends JpaRepository<DailyUserActi
           )
         """)
     long countCohortReturnedOnDate(@Param("cohortDate") LocalDate cohortDate, @Param("returnDate") LocalDate returnDate);
+
+    /** Aggregated replacement for one countFirstSeenOnDate query per day. */
+    @Query(value = """
+        SELECT first_seen.activity_date, COUNT(*)
+        FROM (
+            SELECT user_uuid, MIN(activity_date) AS activity_date
+            FROM daily_user_activity
+            GROUP BY user_uuid
+        ) first_seen
+        GROUP BY first_seen.activity_date
+        ORDER BY first_seen.activity_date ASC
+        """, nativeQuery = true)
+    List<Object[]> findFirstSeenCountsByDate();
+
+    /**
+     * Users whose last previous activity was more than seven days ago.
+     * A window function lets PostgreSQL calculate every day in one table scan.
+     */
+    @Query(value = """
+        SELECT activity_date, COUNT(*)
+        FROM (
+            SELECT activity_date,
+                   LAG(activity_date) OVER (PARTITION BY user_uuid ORDER BY activity_date) AS previous_activity_date
+            FROM daily_user_activity
+        ) activity
+        WHERE previous_activity_date < activity_date - 7
+        GROUP BY activity_date
+        ORDER BY activity_date ASC
+        """, nativeQuery = true)
+    List<Object[]> findReturnedAfterSevenDayGapCountsByDate();
+
+    /** Aggregated replacement for one D1-retention query per day. */
+    @Query(value = """
+        SELECT current_activity.activity_date, COUNT(*)
+        FROM daily_user_activity current_activity
+        INNER JOIN daily_user_activity cohort
+            ON cohort.user_uuid = current_activity.user_uuid
+           AND cohort.activity_date = current_activity.activity_date - 1
+        GROUP BY current_activity.activity_date
+        ORDER BY current_activity.activity_date ASC
+        """, nativeQuery = true)
+    List<Object[]> findDayOneRetentionCountsByDate();
 }

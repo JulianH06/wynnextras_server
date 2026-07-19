@@ -223,27 +223,15 @@ public class WynnextrasServerApplication {
 		StringBuilder c6bl = new StringBuilder(), c6bpct = new StringBuilder(), c6bUsers = new StringBuilder();
 		StringBuilder c6bVisible = new StringBuilder(), c6bOnline = new StringBuilder(), c6bSamples = new StringBuilder();
 		StringBuilder c6bLowest = new StringBuilder(), c6bHighest = new StringBuilder();
-		StringBuilder c6bSampleBreakdowns = new StringBuilder("{");
+		String c6bSampleBreakdowns = "{}";
 		Double latestUsagePercent = null;
 		for (WynncraftUsageSnapshot s : usageSnapshots) {
-			String snapshotDate = s.getSnapshotDate().toString();
-			List<WynncraftUsageStatsService.UsageSampleBreakdown> usageSamples =
-					wynncraftUsageStatsService.buildSampleBreakdown(s.getSnapshotDate());
-			WynncraftUsageStatsService.UsageSampleStats usageSampleStats =
-					wynncraftUsageStatsService.buildSampleStats(usageSamples);
-			boolean hasUsageSamples = usageSampleStats.sampleCount() > 0;
 			appendCsv(c6bl, jsQuote(s.getSnapshotDate().toString()));
-			appendCsv(c6bUsers, Long.toString(hasUsageSamples ? usageSampleStats.averageWynnExtrasUsers() : s.getWynnExtrasUsers()));
-			appendCsv(c6bVisible, Long.toString(hasUsageSamples ? usageSampleStats.averageVisiblePlayers() : s.getUniquePlayers()));
+			appendCsv(c6bUsers, Long.toString(s.getWynnExtrasUsers()));
+			appendCsv(c6bVisible, Long.toString(s.getUniquePlayers()));
 			appendCsv(c6bOnline, s.getTotalOnlinePlayers() == null ? "null" : Long.toString(s.getTotalOnlinePlayers()));
-			appendCsv(c6bSamples, Long.toString(hasUsageSamples ? usageSampleStats.sampleCount() : s.getSampleCount()));
-			appendSampleBreakdown(c6bSampleBreakdowns, snapshotDate, usageSamples, utc);
-			if (hasUsageSamples) {
-				appendCsv(c6bpct, formatNumber(usageSampleStats.averageUsagePercent(), 2));
-				appendCsv(c6bLowest, formatNumber(usageSampleStats.lowestUsagePercent(), 2));
-				appendCsv(c6bHighest, formatNumber(usageSampleStats.highestUsagePercent(), 2));
-				latestUsagePercent = usageSampleStats.averageUsagePercent();
-			} else if (s.getErrorMessage() != null) {
+			appendCsv(c6bSamples, Long.toString(s.getSampleCount()));
+			if (s.getErrorMessage() != null) {
 				appendCsv(c6bpct, "null");
 				appendCsv(c6bLowest, "null");
 				appendCsv(c6bHighest, "null");
@@ -254,10 +242,12 @@ public class WynnextrasServerApplication {
 				latestUsagePercent = s.getUsagePercent();
 			}
 		}
-		c6bSampleBreakdowns.append("}");
 
 		// ── Chart 7/8: Daily heartbeat volume + retention/churn ──────────
 		List<Object[]> heartbeatRows = dailyUserActivityRepository.findDailyHeartbeatStats();
+		Map<LocalDate, Long> firstSeenCounts = toDateCountMap(dailyUserActivityRepository.findFirstSeenCountsByDate());
+		Map<LocalDate, Long> returnedAfterGapCounts = toDateCountMap(dailyUserActivityRepository.findReturnedAfterSevenDayGapCountsByDate());
+		Map<LocalDate, Long> dayOneRetentionCounts = toDateCountMap(dailyUserActivityRepository.findDayOneRetentionCountsByDate());
 		StringBuilder c7l = new StringBuilder(), c7unique = new StringBuilder(), c7heartbeats = new StringBuilder();
 		StringBuilder c8l = new StringBuilder(), c8new = new StringBuilder(), c8returned = new StringBuilder(), c8d1 = new StringBuilder();
 		for (Object[] row : heartbeatRows) {
@@ -268,14 +258,14 @@ public class WynnextrasServerApplication {
 			appendCsv(c7unique, Long.toString(uniqueUsers));
 			appendCsv(c7heartbeats, Long.toString(heartbeatCount));
 			appendCsv(c8l, jsQuote(day.toString()));
-			appendCsv(c8new, Long.toString(dailyUserActivityRepository.countFirstSeenOnDate(day)));
-			appendCsv(c8returned, Long.toString(dailyUserActivityRepository.countReturnedAfterGap(day, day.minusDays(7))));
-			appendCsv(c8d1, Long.toString(dailyUserActivityRepository.countCohortReturnedOnDate(day.minusDays(1), day)));
+			appendCsv(c8new, Long.toString(firstSeenCounts.getOrDefault(day, 0L)));
+			appendCsv(c8returned, Long.toString(returnedAfterGapCounts.getOrDefault(day, 0L)));
+			appendCsv(c8d1, Long.toString(dayOneRetentionCounts.getOrDefault(day, 0L)));
 		}
 
 		LocalDate todayUtc = LocalDate.now(ZoneOffset.UTC);
-		long newToday = dailyUserActivityRepository.countFirstSeenOnDate(todayUtc);
-		long returnedToday = dailyUserActivityRepository.countReturnedAfterGap(todayUtc, todayUtc.minusDays(7));
+		long newToday = firstSeenCounts.getOrDefault(todayUtc, 0L);
+		long returnedToday = returnedAfterGapCounts.getOrDefault(todayUtc, 0L);
 		long inactive7 = allUsers.stream().filter(u -> u.getLastSeen() == null || !u.getLastSeen().isAfter(now.minus(7, java.time.temporal.ChronoUnit.DAYS))).count();
 		long inactive14 = allUsers.stream().filter(u -> u.getLastSeen() == null || !u.getLastSeen().isAfter(now.minus(14, java.time.temporal.ChronoUnit.DAYS))).count();
 		long inactive30 = allUsers.stream().filter(u -> u.getLastSeen() == null || !u.getLastSeen().isAfter(now.minus(30, java.time.temporal.ChronoUnit.DAYS))).count();
@@ -398,6 +388,8 @@ public class WynnextrasServerApplication {
 				  .metric-label { color:#4a6080; font-size:9px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; }
 				  .metric-value { color:#c8d8e8; font-size:22px; }
 				  .user-list { font-size: 12px; line-height: 1.9; margin-top: 32px; max-width: 1200px; color: #8aa0b8; }
+				  .load-progress { height:4px; overflow:hidden; border-radius:99px; background:#1e2530; max-width:360px; margin:8px 0 12px; }
+				  .load-progress-bar { height:100%; width:0; background:#00c8ff; transition:width .2s ease; }
 				  @media (max-width: 900px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 				  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } .card-header { align-items:flex-start; flex-direction:column; } .timeline-controls, .guild-chart-controls, .usage-sample-stats { justify-content:flex-start; } }
 				</style>
@@ -556,8 +548,7 @@ public class WynnextrasServerApplication {
 		sb.append("document.getElementById('usage-sample-stats').innerHTML = usageSampleStatHtml('All time', usageSampleRangeStats(null)) + usageSampleStatHtml('7D', usageSampleRangeStats(7)) + usageSampleStatHtml('14D', usageSampleRangeStats(14));\n");
 		sb.append("const c6bChart=new Chart(document.getElementById('c6b'),{ type:'line', data:{ labels:c6bLabels, datasets:[{ label:'WynnExtras usage %', data:c6bPct, borderColor:'#00e5a0', backgroundColor:'rgba(0,229,160,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ onClick:function(evt,elements){ if(elements.length){ setUsageSampleDay(elements[0].index); } }, scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const i=ctx.dataIndex; if (ctx.raw == null) return ' snapshot error'; const online = c6bOnline[i] == null ? 'unknown' : c6bOnline[i]; const low = c6bLowest[i] == null ? 'n/a' : c6bLowest[i].toFixed(2)+'%'; const high = c6bHighest[i] == null ? 'n/a' : c6bHighest[i].toFixed(2)+'%'; return ' '+ctx.raw.toFixed(2)+'% avg ('+c6bSamples[i]+' samples, lowest '+low+', highest '+high+', avg '+c6bUsers[i]+' / '+c6bVisible[i]+' visible players, '+online+' total online players)'; } } } } }) });\n");
 		sb.append("const c6bDetailTitle=document.getElementById('c6b-detail-title'); const c6bDetailChart=new Chart(document.getElementById('c6b-detail'),{ type:'line', data:{ labels:[], datasets:[{ label:'Sample usage %', data:[], borderColor:'#00c8ff', backgroundColor:'rgba(0,200,255,0.08)', borderWidth:2, pointRadius:2, fill:true, tension:0.25 }] }, options:opts({ scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:24}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, suggestedMax:10, ticks:{color:'#4a6080', callback:v=>v+'%'}, grid:{color:'#1e2530'} } }, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } }, tooltip:{ callbacks:{ label:function(ctx){ const row=(c6bDetailChart.$rows||[])[ctx.dataIndex]; if(!row) return ''; return ' '+ctx.raw.toFixed(2)+'% ('+row.users+' / '+row.visible+' visible players)'; }, title:function(items){ const row=(c6bDetailChart.$rows||[])[items[0]?.dataIndex]; return row ? row.ts : ''; } } } } }) });\n");
-		sb.append("function setUsageSampleDay(index){ if(index == null || index < 0 || index >= c6bLabels.length) return; const day=c6bLabels[index]; const rows=c6bSampleBreakdowns[day] || []; c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+(rows.length ? '' : ' - no samples'); c6bDetailChart.$rows=rows; c6bDetailChart.data.labels=rows.map(r=>r.t); c6bDetailChart.data.datasets[0].data=rows.map(r=>r.pct); c6bDetailChart.update(); c6bChart.data.datasets[0].pointRadius=c6bLabels.map((_,i)=>i===index?5:2); c6bChart.update(); }\n");
-		sb.append("const initialUsageSampleIndex=c6bLabels.map((_,i)=>i).reverse().find(i=>(c6bSampleBreakdowns[c6bLabels[i]] || []).length > 0); setUsageSampleDay(initialUsageSampleIndex === undefined ? c6bLabels.length - 1 : initialUsageSampleIndex);\n");
+		sb.append("async function setUsageSampleDay(index){ if(index == null || index < 0 || index >= c6bLabels.length) return; const day=c6bLabels[index]; c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+' - loading...'; c6bChart.data.datasets[0].pointRadius=c6bLabels.map((_,i)=>i===index?5:2); c6bChart.update(); try { let rows=c6bSampleBreakdowns[day]; if (!rows) { const response=await fetch('/db/usage-samples?date='+encodeURIComponent(day)); if (!response.ok) throw new Error('HTTP '+response.status); rows=await response.json(); c6bSampleBreakdowns[day]=rows; } c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+(rows.length ? '' : ' - no samples'); c6bDetailChart.$rows=rows; c6bDetailChart.data.labels=rows.map(r=>r.t); c6bDetailChart.data.datasets[0].data=rows.map(r=>r.pct); c6bDetailChart.update(); } catch(error) { c6bDetailTitle.textContent='WynnExtras usage by sample (UTC) - '+day+' - failed to load'; } }\n");
 
 		// Chart 7 script
 		sb.append("new Chart(document.getElementById('c7'),{ type:'bar', data:{ labels:[").append(c7l)
@@ -713,6 +704,7 @@ public class WynnextrasServerApplication {
 				<div class="user-list">
 				  <div class="card-title">Players</div>
 				  <div id="db-user-list-status" style="margin:8px 0;color:#4a6080">Loading players...</div>
+				  <div class="load-progress" role="progressbar" aria-label="Player list loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="db-user-list-progress" class="load-progress-bar"></div></div>
 				  <div id="db-user-list"></div>
 				  <button id="db-user-list-more" type="button" style="display:none;margin-top:12px;font:inherit;padding:7px 12px;border:1px solid #2a3545;border-radius:5px;background:#111419;color:#c8d8e8;cursor:pointer">Load more</button>
 				  <div id="db-user-list-sentinel" aria-hidden="true" style="height:1px"></div>
@@ -721,16 +713,25 @@ public class WynnextrasServerApplication {
 				(() => {
 				  const list = document.getElementById('db-user-list');
 				  const status = document.getElementById('db-user-list-status');
+				  const progress = document.getElementById('db-user-list-progress');
+				  const progressContainer = progress.parentElement;
 				  const more = document.getElementById('db-user-list-more');
 				  const sentinel = document.getElementById('db-user-list-sentinel');
 				  let page = 0;
 				  let loaded = 0;
+				  let total = null;
 				  let hasNext = true;
 				  let loading = false;
 
 				  const formatDate = value => value
 				    ? new Intl.DateTimeFormat('de-DE', { dateStyle:'short', timeStyle:'medium', timeZone:'UTC' }).format(new Date(value)) + ' UTC'
 				    : 'N/A';
+
+				  function updateProgress() {
+				    const percentage = total == null || total === 0 ? (hasNext ? 0 : 100) : Math.min(100, Math.round(loaded * 100 / total));
+				    progress.style.width = percentage + '%';
+				    progressContainer.setAttribute('aria-valuenow', percentage);
+				  }
 
 				  async function loadPlayers() {
 				    if (loading || !hasNext) return;
@@ -741,6 +742,7 @@ public class WynnextrasServerApplication {
 				      const response = await fetch('/db/users?page=' + page + '&size=200');
 				      if (!response.ok) throw new Error('HTTP ' + response.status);
 				      const data = await response.json();
+				      if (data.total != null) total = data.total;
 				      const fragment = document.createDocumentFragment();
 				      for (const user of data.users) {
 				        const row = document.createElement('div');
@@ -751,7 +753,10 @@ public class WynnextrasServerApplication {
 				      loaded += data.users.length;
 				      page++;
 				      hasNext = data.hasNext;
-				      status.textContent = hasNext ? loaded + ' players loaded' : loaded + ' players loaded (all)';
+				      updateProgress();
+				      status.textContent = total == null || total === 0
+				        ? (hasNext ? loaded + ' players loaded' : loaded + ' players loaded (all)')
+				        : loaded + ' of ' + total + ' players loaded (' + Math.round(loaded * 100 / total) + '%)';
 				      more.style.display = hasNext ? '' : 'none';
 				    } catch (error) {
 				      status.textContent = 'Could not load players: ' + error.message;
@@ -794,37 +799,47 @@ public class WynnextrasServerApplication {
 				.map(user -> new DbUserListItem(
 						user.getUuid(), user.getUsername(), user.getCreatedAt(), user.getLastSeen(), user.getModVersion()))
 				.toList();
-		return ResponseEntity.ok(new DbUserListResponse(users, userPage.hasNext()));
+		Long total = page == 0 ? wynnExtrasUserRepository.count() : null;
+		return ResponseEntity.ok(new DbUserListResponse(users, userPage.hasNext(), total));
 	}
 
 	private record DbUserListItem(String uuid, String username, Instant createdAt, Instant lastSeen, String modVersion) {}
 
-	private record DbUserListResponse(List<DbUserListItem> users, boolean hasNext) {}
+	private record DbUserListResponse(List<DbUserListItem> users, boolean hasNext, Long total) {}
+
+	@GetMapping("/db/usage-samples")
+	public ResponseEntity<List<UsageSampleItem>> viewDatabaseUsageSamples(@RequestParam LocalDate date) {
+		DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneOffset.UTC);
+		List<UsageSampleItem> samples = wynncraftUsageStatsService.buildSampleBreakdown(date).stream()
+				.map(sample -> new UsageSampleItem(
+						timeFormatter.format(sample.sampledAt()),
+						sample.sampledAt().toString(),
+						sample.usagePercent(),
+						sample.wynnExtrasUsers(),
+						sample.visiblePlayers()))
+				.toList();
+		return ResponseEntity.ok(samples);
+	}
+
+	private record UsageSampleItem(String t, String ts, double pct, long users, long visible) {}
+
+	private static Map<LocalDate, Long> toDateCountMap(List<Object[]> rows) {
+		Map<LocalDate, Long> counts = new LinkedHashMap<>();
+		for (Object[] row : rows) {
+			Object dateValue = row[0];
+			LocalDate date = dateValue instanceof LocalDate localDate
+					? localDate
+					: dateValue instanceof java.sql.Date sqlDate
+							? sqlDate.toLocalDate()
+							: LocalDate.parse(dateValue.toString().substring(0, 10));
+			counts.put(date, ((Number) row[1]).longValue());
+		}
+		return counts;
+	}
 
 	private static void appendCsv(StringBuilder sb, String value) {
 		if (sb.length() > 0) sb.append(",");
 		sb.append(value);
-	}
-
-	private static void appendSampleBreakdown(
-			StringBuilder sb,
-			String snapshotDate,
-			List<WynncraftUsageStatsService.UsageSampleBreakdown> samples,
-			ZoneId zone) {
-		if (sb.length() > 1) sb.append(",");
-		sb.append(jsQuote(snapshotDate)).append(":[");
-		DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm").withZone(zone);
-		for (int i = 0; i < samples.size(); i++) {
-			WynncraftUsageStatsService.UsageSampleBreakdown sample = samples.get(i);
-			if (i > 0) sb.append(",");
-			sb.append("{t:").append(jsQuote(timeFmt.format(sample.sampledAt())))
-					.append(",ts:").append(jsQuote(sample.sampledAt().toString()))
-					.append(",pct:").append(formatNumber(sample.usagePercent(), 2))
-					.append(",users:").append(sample.wynnExtrasUsers())
-					.append(",visible:").append(sample.visiblePlayers())
-					.append("}");
-		}
-		sb.append("]");
 	}
 
 	private static void appendTimelineDataset(StringBuilder sb, String label, StringBuilder data, String color) {

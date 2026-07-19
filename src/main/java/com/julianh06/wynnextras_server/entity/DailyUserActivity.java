@@ -8,7 +8,8 @@ import java.time.LocalDate;
 @Table(name = "daily_user_activity", uniqueConstraints = {
         @UniqueConstraint(columnNames = {"activity_date", "user_uuid"})
 }, indexes = {
-        @Index(name = "idx_daily_activity_user_last_heartbeat", columnList = "user_uuid,last_heartbeat_at")
+        @Index(name = "idx_daily_activity_user_last_heartbeat", columnList = "user_uuid,last_heartbeat_at"),
+        @Index(name = "idx_daily_activity_user_date", columnList = "user_uuid,activity_date")
 })
 public class DailyUserActivity {
     @Id
