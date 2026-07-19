@@ -3,7 +3,6 @@ package com.julianh06.wynnextras_server;
 import com.julianh06.wynnextras_server.entity.ActiveUserSnapshot;
 import com.julianh06.wynnextras_server.entity.GuildUserSnapshot;
 import com.julianh06.wynnextras_server.entity.VersionUsageSnapshot;
-import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
 import com.julianh06.wynnextras_server.entity.WynncraftUsageSnapshot;
 import com.julianh06.wynnextras_server.repository.ActiveUserSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.DailyUserActivityRepository;
@@ -15,9 +14,12 @@ import com.julianh06.wynnextras_server.service.WynncraftUsageStatsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
@@ -74,17 +76,18 @@ public class WynnextrasServerApplication {
 
 	@GetMapping("/db")
 	public ResponseEntity<String> viewDatabase() {
-		List<WynnExtrasUser> allUsers = wynnExtrasUserRepository.findActiveUsersSince(Instant.ofEpochSecond(0));
+		List<WynnExtrasUserRepository.DbDashboardUser> allUsers =
+				wynnExtrasUserRepository.findDbDashboardUsers(Instant.ofEpochSecond(0));
 
 		ZoneId utc = ZoneId.of("UTC");
 		DateTimeFormatter dayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(utc);
 
-		List<WynnExtrasUser> sorted = new ArrayList<>(allUsers);
+		List<WynnExtrasUserRepository.DbDashboardUser> sorted = new ArrayList<>(allUsers);
 		sorted.sort(Comparator.comparing(u -> u.getCreatedAt() != null ? u.getCreatedAt() : Instant.EPOCH));
 
 		// ── Chart 1: Cumulative users ─────────────────────────────────────
 		Map<String, Integer> createdPerDay = new LinkedHashMap<>();
-		for (WynnExtrasUser u : sorted) {
+		for (WynnExtrasUserRepository.DbDashboardUser u : sorted) {
 			if (u.getCreatedAt() == null) continue;
 			createdPerDay.merge(dayFmt.format(u.getCreatedAt()), 1, Integer::sum);
 		}
@@ -100,7 +103,7 @@ public class WynnextrasServerApplication {
 
 		// ── Chart 2: New users per week ───────────────────────────────────
 		Map<String, Integer> newPerWeek = new LinkedHashMap<>();
-		for (WynnExtrasUser u : sorted) {
+		for (WynnExtrasUserRepository.DbDashboardUser u : sorted) {
 			if (u.getCreatedAt() == null) continue;
 			LocalDate monday = LocalDate.ofInstant(u.getCreatedAt(), utc).with(java.time.DayOfWeek.MONDAY);
 			newPerWeek.merge(monday.toString(), 1, Integer::sum);
@@ -114,7 +117,7 @@ public class WynnextrasServerApplication {
 
 		// ── Chart 3: Daily last-seen + 7-day rolling average ─────────────
 		Map<String, Integer> lastSeenMap = new LinkedHashMap<>();
-		for (WynnExtrasUser u : allUsers) {
+		for (WynnExtrasUserRepository.DbDashboardUser u : allUsers) {
 			if (u.getLastSeen() == null) continue;
 			lastSeenMap.merge(dayFmt.format(u.getLastSeen()), 1, Integer::sum);
 		}
@@ -138,7 +141,7 @@ public class WynnextrasServerApplication {
 			"rgba(50,200,120,0.7)","rgba(100,160,255,0.7)","rgba(255,220,50,0.7)","rgba(200,80,160,0.7)"
 		};
 		Map<String, Integer> versionMap = new LinkedHashMap<>();
-		for (WynnExtrasUser u : allUsers) {
+		for (WynnExtrasUserRepository.DbDashboardUser u : allUsers) {
 			if (u.getModVersion() == null || u.getModVersion().isBlank()) continue;
 			versionMap.merge(u.getModVersion(), 1, Integer::sum);
 		}
@@ -158,7 +161,7 @@ public class WynnextrasServerApplication {
 
 		Map<String, Integer> versionMap7  = new LinkedHashMap<>();
 		Map<String, Integer> versionMap14 = new LinkedHashMap<>();
-		for (WynnExtrasUser u : allUsers) {
+		for (WynnExtrasUserRepository.DbDashboardUser u : allUsers) {
 			if (u.getModVersion() == null || u.getModVersion().isBlank() || u.getLastSeen() == null) continue;
 			if (u.getLastSeen().isAfter(cutoff7))  versionMap7.merge(u.getModVersion(),  1, Integer::sum);
 			if (u.getLastSeen().isAfter(cutoff14)) versionMap14.merge(u.getModVersion(), 1, Integer::sum);
@@ -189,7 +192,7 @@ public class WynnextrasServerApplication {
 
 		// ── Chart 5: Hour-of-day activity ─────────────────────────────────
 		int[] hours = new int[24];
-		for (WynnExtrasUser u : allUsers) {
+		for (WynnExtrasUserRepository.DbDashboardUser u : allUsers) {
 			if (u.getLastSeen() == null) continue;
 			hours[u.getLastSeen().atZone(utc).getHour()]++;
 		}
@@ -706,37 +709,97 @@ public class WynnextrasServerApplication {
 				</div>
 				""");
 
-		sb.append("<div class=\"user-list\">");
-		printUsers(sb, sorted);
-		sb.append("</div></body></html>");
+		sb.append("""
+				<div class="user-list">
+				  <div class="card-title">Players</div>
+				  <div id="db-user-list-status" style="margin:8px 0;color:#4a6080">Loading players...</div>
+				  <div id="db-user-list"></div>
+				  <button id="db-user-list-more" type="button" style="display:none;margin-top:12px;font:inherit;padding:7px 12px;border:1px solid #2a3545;border-radius:5px;background:#111419;color:#c8d8e8;cursor:pointer">Load more</button>
+				  <div id="db-user-list-sentinel" aria-hidden="true" style="height:1px"></div>
+				</div>
+				<script>
+				(() => {
+				  const list = document.getElementById('db-user-list');
+				  const status = document.getElementById('db-user-list-status');
+				  const more = document.getElementById('db-user-list-more');
+				  const sentinel = document.getElementById('db-user-list-sentinel');
+				  let page = 0;
+				  let loaded = 0;
+				  let hasNext = true;
+				  let loading = false;
+
+				  const formatDate = value => value
+				    ? new Intl.DateTimeFormat('de-DE', { dateStyle:'short', timeStyle:'medium', timeZone:'UTC' }).format(new Date(value)) + ' UTC'
+				    : 'N/A';
+
+				  async function loadPlayers() {
+				    if (loading || !hasNext) return;
+				    loading = true;
+				    more.disabled = true;
+				    status.textContent = 'Loading players...';
+				    try {
+				      const response = await fetch('/db/users?page=' + page + '&size=200');
+				      if (!response.ok) throw new Error('HTTP ' + response.status);
+				      const data = await response.json();
+				      const fragment = document.createDocumentFragment();
+				      for (const user of data.users) {
+				        const row = document.createElement('div');
+				        row.textContent = user.username + ' | ' + formatDate(user.createdAt) + ' | ' + formatDate(user.lastSeen) + ' | ' + (user.modVersion || 'N/A');
+				        fragment.appendChild(row);
+				      }
+				      list.appendChild(fragment);
+				      loaded += data.users.length;
+				      page++;
+				      hasNext = data.hasNext;
+				      status.textContent = hasNext ? loaded + ' players loaded' : loaded + ' players loaded (all)';
+				      more.style.display = hasNext ? '' : 'none';
+				    } catch (error) {
+				      status.textContent = 'Could not load players: ' + error.message;
+				      more.style.display = '';
+				    } finally {
+				      loading = false;
+				      more.disabled = false;
+				    }
+				  }
+
+				  more.addEventListener('click', loadPlayers);
+				  if ('IntersectionObserver' in window) {
+				    new IntersectionObserver(entries => {
+				      if (entries.some(entry => entry.isIntersecting)) loadPlayers();
+				    }, { rootMargin: '300px' }).observe(sentinel);
+				  }
+				  loadPlayers();
+				})();
+				</script>
+				</body></html>
+				""");
 
 		return ResponseEntity.ok()
 				.header("Content-Type", "text/html; charset=UTF-8")
 				.body(sb.toString());
 	}
 
-	private void printUsers(StringBuilder sb, List<WynnExtrasUser> allUsersCopy) {
-		for (WynnExtrasUser u : allUsersCopy) {
-			String date = u.getLastSeen() != null
-					? new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss")
-					.format(new java.util.Date(u.getLastSeen().toEpochMilli()))
-					: "N/A";
 
-			String created = u.getCreatedAt() != null
-					? new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss")
-					.format(new java.util.Date(u.getCreatedAt().toEpochMilli()))
-					: "N/A";
-
-			sb.append(u.getUsername())
-					.append(" | ")
-					.append(created)
-					.append(" | ")
-					.append(date)
-					.append(" | ")
-					.append(u.getModVersion())
-					.append("<br>");
+	@GetMapping("/db/users")
+	public ResponseEntity<?> viewDatabaseUsers(
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "200") int size) {
+		if (page < 0 || size < 1 || size > 500) {
+			return ResponseEntity.badRequest().body("page must be at least 0 and size must be between 1 and 500");
 		}
+
+		Slice<WynnExtrasUserRepository.DbUserListEntry> userPage =
+				wynnExtrasUserRepository.findDbUserList(PageRequest.of(page, size));
+		List<DbUserListItem> users = userPage.getContent().stream()
+				.map(user -> new DbUserListItem(
+						user.getUuid(), user.getUsername(), user.getCreatedAt(), user.getLastSeen(), user.getModVersion()))
+				.toList();
+		return ResponseEntity.ok(new DbUserListResponse(users, userPage.hasNext()));
 	}
+
+	private record DbUserListItem(String uuid, String username, Instant createdAt, Instant lastSeen, String modVersion) {}
+
+	private record DbUserListResponse(List<DbUserListItem> users, boolean hasNext) {}
 
 	private static void appendCsv(StringBuilder sb, String value) {
 		if (sb.length() > 0) sb.append(",");

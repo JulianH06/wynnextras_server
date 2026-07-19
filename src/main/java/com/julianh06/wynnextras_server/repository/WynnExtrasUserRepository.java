@@ -3,6 +3,8 @@ package com.julianh06.wynnextras_server.repository;
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -30,6 +32,17 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
     List<WynnExtrasUser> findActiveUsersSince(@Param("cutoff") Instant cutoff);
 
     /**
+     * Minimal data set needed to render the dashboard charts.  In particular,
+     * badge data and usernames are not loaded for every user on each /db visit.
+     */
+    @Query("""
+            SELECT u.createdAt AS createdAt, u.lastSeen AS lastSeen, u.modVersion AS modVersion
+            FROM WynnExtrasUser u
+            WHERE u.lastSeen > :cutoff
+            """)
+    List<DbDashboardUser> findDbDashboardUsers(@Param("cutoff") Instant cutoff);
+
+    /**
      * Get just the UUIDs of active users (more efficient for the badge list)
      */
     @Query("SELECT u.uuid FROM WynnExtrasUser u WHERE u.lastSeen > :cutoff")
@@ -40,4 +53,31 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
      */
     @Query("SELECT COUNT(u) FROM WynnExtrasUser u WHERE u.lastSeen > :cutoff")
     long countActiveUsersSince(@Param("cutoff") Instant cutoff);
+
+    /**
+     * Lightweight, paginated projection for the database dashboard's user list.
+     * Keeping this separate from the dashboard aggregates avoids serializing every
+     * player into the initial HTML response.
+     */
+    @Query("""
+            SELECT u.uuid AS uuid, u.username AS username, u.createdAt AS createdAt,
+                   u.lastSeen AS lastSeen, u.modVersion AS modVersion
+            FROM WynnExtrasUser u
+            ORDER BY u.createdAt ASC, u.uuid ASC
+            """)
+    Slice<DbUserListEntry> findDbUserList(Pageable pageable);
+
+    interface DbUserListEntry {
+        String getUuid();
+        String getUsername();
+        Instant getCreatedAt();
+        Instant getLastSeen();
+        String getModVersion();
+    }
+
+    interface DbDashboardUser {
+        Instant getCreatedAt();
+        Instant getLastSeen();
+        String getModVersion();
+    }
 }
