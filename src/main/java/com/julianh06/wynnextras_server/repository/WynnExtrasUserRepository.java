@@ -42,6 +42,33 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
             """)
     List<DbDashboardUser> findDbDashboardUsers(@Param("cutoff") Instant cutoff);
 
+    @Query("""
+            SELECT u.badgeIconId AS badgeIconId, COUNT(u) AS usageCount
+            FROM WynnExtrasUser u
+            WHERE u.lastSeen > :cutoff
+            GROUP BY u.badgeIconId
+            ORDER BY COUNT(u) DESC, u.badgeIconId ASC
+            """)
+    List<BadgeIconUsage> findBadgeIconUsage(@Param("cutoff") Instant cutoff);
+
+    @Query("""
+            SELECT u.badgeColorId AS badgeColorId, COUNT(u) AS usageCount
+            FROM WynnExtrasUser u
+            WHERE u.lastSeen > :cutoff
+            GROUP BY u.badgeColorId
+            ORDER BY COUNT(u) DESC, u.badgeColorId ASC
+            """)
+    List<BadgeColorUsage> findBadgeColorUsage(@Param("cutoff") Instant cutoff);
+
+    @Query("""
+            SELECT u.badgeIconId AS badgeIconId, u.badgeColorId AS badgeColorId, COUNT(u) AS usageCount
+            FROM WynnExtrasUser u
+            WHERE u.lastSeen > :cutoff
+            GROUP BY u.badgeIconId, u.badgeColorId
+            ORDER BY COUNT(u) DESC, u.badgeIconId ASC, u.badgeColorId ASC
+            """)
+    List<BadgeCombinationUsage> findBadgeCombinationUsage(@Param("cutoff") Instant cutoff);
+
     /**
      * Get just the UUIDs of active users (more efficient for the badge list)
      */
@@ -79,5 +106,21 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
         Instant getCreatedAt();
         Instant getLastSeen();
         String getModVersion();
+    }
+
+    interface BadgeIconUsage {
+        String getBadgeIconId();
+        long getUsageCount();
+    }
+
+    interface BadgeColorUsage {
+        String getBadgeColorId();
+        long getUsageCount();
+    }
+
+    interface BadgeCombinationUsage {
+        String getBadgeIconId();
+        String getBadgeColorId();
+        long getUsageCount();
     }
 }

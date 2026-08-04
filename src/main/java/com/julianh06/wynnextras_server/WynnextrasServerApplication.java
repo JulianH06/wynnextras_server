@@ -76,8 +76,9 @@ public class WynnextrasServerApplication {
 
 	@GetMapping("/db")
 	public ResponseEntity<String> viewDatabase() {
+		Instant dashboardCutoff = Instant.ofEpochSecond(0);
 		List<WynnExtrasUserRepository.DbDashboardUser> allUsers =
-				wynnExtrasUserRepository.findDbDashboardUsers(Instant.ofEpochSecond(0));
+				wynnExtrasUserRepository.findDbDashboardUsers(dashboardCutoff);
 
 		ZoneId utc = ZoneId.of("UTC");
 		DateTimeFormatter dayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(utc);
@@ -152,6 +153,30 @@ public class WynnextrasServerApplication {
 			if (c4l.length() > 0) { c4l.append(","); c4d.append(","); }
 			c4l.append('"').append(e.getKey()).append('"');
 			c4d.append(e.getValue());
+		}
+
+		// ── Charts 4d/4e/4f: Badge icon, color and combination usage ─────
+		List<WynnExtrasUserRepository.BadgeIconUsage> badgeIconUsage =
+				wynnExtrasUserRepository.findBadgeIconUsage(dashboardCutoff);
+		List<WynnExtrasUserRepository.BadgeColorUsage> badgeColorUsage =
+				wynnExtrasUserRepository.findBadgeColorUsage(dashboardCutoff);
+		List<WynnExtrasUserRepository.BadgeCombinationUsage> badgeCombinationUsage =
+				wynnExtrasUserRepository.findBadgeCombinationUsage(dashboardCutoff);
+
+		StringBuilder c4dl = new StringBuilder(), c4dd = new StringBuilder();
+		for (WynnExtrasUserRepository.BadgeIconUsage usage : badgeIconUsage) {
+			appendCsv(c4dl, jsQuote(usage.getBadgeIconId()));
+			appendCsv(c4dd, Long.toString(usage.getUsageCount()));
+		}
+		StringBuilder c4el = new StringBuilder(), c4ed = new StringBuilder();
+		for (WynnExtrasUserRepository.BadgeColorUsage usage : badgeColorUsage) {
+			appendCsv(c4el, jsQuote(usage.getBadgeColorId()));
+			appendCsv(c4ed, Long.toString(usage.getUsageCount()));
+		}
+		StringBuilder c4fl = new StringBuilder(), c4fd = new StringBuilder();
+		for (WynnExtrasUserRepository.BadgeCombinationUsage usage : badgeCombinationUsage) {
+			appendCsv(c4fl, jsQuote(usage.getBadgeIconId() + " + " + usage.getBadgeColorId()));
+			appendCsv(c4fd, Long.toString(usage.getUsageCount()));
 		}
 
 		// ── Charts 4b/4c: Version distribution — active last 7 / 14 days ──
@@ -478,10 +503,18 @@ public class WynnextrasServerApplication {
 		sb.append("<div class=\"card\"><div class=\"card-title\">Mod version distribution — active last 14 days</div><canvas id=\"c4c\"></canvas></div>");
 		sb.append("</div>");
 
+		// Badge usage charts
+		sb.append("<div class=\"grid grid-2\">");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Badge icon usage (all users)</div><canvas id=\"c4d\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Badge color usage (all users)</div><canvas id=\"c4e\"></canvas></div>");
+		sb.append("</div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Badge icon + color combinations (all users)</div><canvas id=\"c4f\" height=\"100\"></canvas></div>");
+
 		sb.append("</div>"); // grid
 
 		sb.append("<script>\nconst opts = (extra={}) => ({ responsive:true, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } } }, scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, ticks:{color:'#4a6080'}, grid:{color:'#1e2530'} } }, ...extra });\n");
 		sb.append("const doughnutOpts = { responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } }, tooltip:{ callbacks:{ label: function(ctx){ const total=ctx.dataset.data.reduce((a,b)=>a+b,0); const pct=total>0?((ctx.raw/total)*100).toFixed(1):'0.0'; return ' '+ctx.label+': '+ctx.raw+' ('+pct+'%)'; } } } } };\n");
+		sb.append("const badgeChartColors = count => Array.from({length:count},(_,i)=>'hsla('+Math.round(i*360/Math.max(count,1))+', 72%, 58%, 0.75)');\n");
 
 		// Chart 1 script
 		sb.append("new Chart(document.getElementById('c1'),{ type:'line', data:{ labels:[").append(c1l)
@@ -519,6 +552,17 @@ public class WynnextrasServerApplication {
 				.append("], datasets:[{ data:[").append(c4cd)
 				.append("], backgroundColor:[").append(c4cColors)
 				.append("], borderColor:'#111419', borderWidth:2 }] }, options:doughnutOpts });\n");
+
+		// Charts 4d/4e/4f — badge usage
+		sb.append("const c4dLabels=[").append(c4dl).append("];\n")
+				.append("new Chart(document.getElementById('c4d'),{ type:'doughnut', data:{ labels:c4dLabels, datasets:[{ data:[")
+				.append(c4dd).append("], backgroundColor:badgeChartColors(c4dLabels.length), borderColor:'#111419', borderWidth:2 }] }, options:doughnutOpts });\n");
+		sb.append("const c4eLabels=[").append(c4el).append("];\n")
+				.append("new Chart(document.getElementById('c4e'),{ type:'doughnut', data:{ labels:c4eLabels, datasets:[{ data:[")
+				.append(c4ed).append("], backgroundColor:badgeChartColors(c4eLabels.length), borderColor:'#111419', borderWidth:2 }] }, options:doughnutOpts });\n");
+		sb.append("const c4fLabels=[").append(c4fl).append("];\n")
+				.append("new Chart(document.getElementById('c4f'),{ type:'doughnut', data:{ labels:c4fLabels, datasets:[{ data:[")
+				.append(c4fd).append("], backgroundColor:badgeChartColors(c4fLabels.length), borderColor:'#111419', borderWidth:2 }] }, options:doughnutOpts });\n");
 
 		// Chart 5 script
 		String[] hourLabels = new String[24];
