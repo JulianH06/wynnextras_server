@@ -5,6 +5,7 @@ import com.julianh06.wynnextras_server.entity.AnonymousUserActivity;
 import com.julianh06.wynnextras_server.repository.AnonymousDailyActivityRepository;
 import com.julianh06.wynnextras_server.repository.AnonymousUserActivityRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -22,6 +23,7 @@ public class AnonymousTelemetryService {
     private final AnonymousDailyActivityRepository dailyActivityRepository;
     private final Clock clock;
 
+    @Autowired
     public AnonymousTelemetryService(AnonymousUserActivityRepository activityRepository,
                                      AnonymousDailyActivityRepository dailyActivityRepository) {
         this(activityRepository, dailyActivityRepository, Clock.systemUTC());
