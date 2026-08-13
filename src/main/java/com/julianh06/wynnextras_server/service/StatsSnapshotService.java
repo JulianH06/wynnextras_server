@@ -1,10 +1,12 @@
 package com.julianh06.wynnextras_server.service;
 
 import com.julianh06.wynnextras_server.entity.ActiveUserSnapshot;
+import com.julianh06.wynnextras_server.entity.AnonymousUserActivity;
 import com.julianh06.wynnextras_server.entity.GuildUserSnapshot;
 import com.julianh06.wynnextras_server.entity.VersionUsageSnapshot;
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
 import com.julianh06.wynnextras_server.repository.ActiveUserSnapshotRepository;
+import com.julianh06.wynnextras_server.repository.AnonymousUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.GuildUserSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.VersionUsageSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
@@ -33,6 +35,7 @@ public class StatsSnapshotService {
     );
 
     @Autowired private WynnExtrasUserRepository wynnExtrasUserRepository;
+    @Autowired private AnonymousUserActivityRepository anonymousUserActivityRepository;
     @Autowired private ActiveUserSnapshotRepository activeUserSnapshotRepository;
     @Autowired private VersionUsageSnapshotRepository versionUsageSnapshotRepository;
     @Autowired private GuildUserSnapshotRepository guildUserSnapshotRepository;
@@ -74,6 +77,12 @@ public class StatsSnapshotService {
         snapshot.setActive7d(wynnExtrasUserRepository.countActiveUsersSince(snapshotInstant.minus(7, ChronoUnit.DAYS)));
         snapshot.setActive10d(wynnExtrasUserRepository.countActiveUsersSince(snapshotInstant.minus(10, ChronoUnit.DAYS)));
         snapshot.setActive14d(wynnExtrasUserRepository.countActiveUsersSince(snapshotInstant.minus(14, ChronoUnit.DAYS)));
+        snapshot.setAnonymousActive1d(anonymousUserActivityRepository.countByLastSeenAtAfter(snapshotInstant.minus(1, ChronoUnit.DAYS)));
+        snapshot.setAnonymousActive3d(anonymousUserActivityRepository.countByLastSeenAtAfter(snapshotInstant.minus(3, ChronoUnit.DAYS)));
+        snapshot.setAnonymousActive5d(anonymousUserActivityRepository.countByLastSeenAtAfter(snapshotInstant.minus(5, ChronoUnit.DAYS)));
+        snapshot.setAnonymousActive7d(anonymousUserActivityRepository.countByLastSeenAtAfter(snapshotInstant.minus(7, ChronoUnit.DAYS)));
+        snapshot.setAnonymousActive10d(anonymousUserActivityRepository.countByLastSeenAtAfter(snapshotInstant.minus(10, ChronoUnit.DAYS)));
+        snapshot.setAnonymousActive14d(anonymousUserActivityRepository.countByLastSeenAtAfter(snapshotInstant.minus(14, ChronoUnit.DAYS)));
 
         activeUserSnapshotRepository.save(snapshot);
     }
@@ -106,6 +115,21 @@ public class StatsSnapshotService {
             }
         }
 
+        Map<String, VersionCounts> anonymousCountsByVersion = new HashMap<>();
+        for (AnonymousUserActivity activity : anonymousUserActivityRepository.findAll()) {
+            String version = activity.getModVersion();
+            if (version == null || version.isBlank()) continue;
+            VersionCounts counts = anonymousCountsByVersion.computeIfAbsent(version, ignored -> new VersionCounts());
+            counts.total++;
+            if (activity.getLastSeenAt().isAfter(cutoff1)) counts.active1++;
+            if (activity.getLastSeenAt().isAfter(cutoff3)) counts.active3++;
+            if (activity.getLastSeenAt().isAfter(cutoff7)) counts.active7++;
+            if (activity.getLastSeenAt().isAfter(cutoff14)) counts.active14++;
+        }
+
+        anonymousCountsByVersion.keySet().forEach(version ->
+                countsByVersion.computeIfAbsent(version, ignored -> new VersionCounts()));
+
         for (Map.Entry<String, VersionCounts> entry : countsByVersion.entrySet()) {
             VersionUsageSnapshot snapshot = versionUsageSnapshotRepository
                     .findBySnapshotDateAndModVersion(snapshotDate, entry.getKey())
@@ -117,6 +141,12 @@ public class StatsSnapshotService {
             snapshot.setActive3dCount(counts.active3);
             snapshot.setActive7dCount(counts.active7);
             snapshot.setActive14dCount(counts.active14);
+            VersionCounts anonymousCounts = anonymousCountsByVersion.getOrDefault(entry.getKey(), new VersionCounts());
+            snapshot.setAnonymousUserCount(anonymousCounts.total);
+            snapshot.setAnonymousActive1dCount(anonymousCounts.active1);
+            snapshot.setAnonymousActive3dCount(anonymousCounts.active3);
+            snapshot.setAnonymousActive7dCount(anonymousCounts.active7);
+            snapshot.setAnonymousActive14dCount(anonymousCounts.active14);
             versionUsageSnapshotRepository.save(snapshot);
         }
     }

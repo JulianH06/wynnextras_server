@@ -22,8 +22,15 @@ public class PrivacyController {
                 </head>
                 <body>
                     <h1>Privacy Notice</h1>
-                    <p>Data listed during OAuth2 setup is only used for ingame API calls like the profile and guild viewer and is not send to our server.</p>
+                    <p>Data from OAuth2 setup is only used for in-game API calls such as the profile and guild viewers. It is not sent to our server.</p>
                     <p>The only data our server collects is Minecraft UUID, Username, Mod Version, and last usage time to allow for basic usage statistics.</p>
+                    <p>Users with version 0.19.0 and above are able to anonymize their data sent.</p>
+                    <p>When anonymization is enabled, a random anonymous identifier is used instead and remains stable for 30 days. We store only this period identifier, the 30-day period, mod version, activity timestamps, and heartbeat counts. This data is stored in separate tables and contains no Minecraft UUID, username, session, badge data, or personal aspects.</p>
+                    <p>Statistics report identified and anonymous activity separately and in combination. Combined values add identified users and anonymous period identifiers; because identifiers rotate, they do not necessarily represent unique people across multiple periods. Anonymous retention can be measured only within the same 30-day period.</p>
+                    <h2>Public profile data</h2>
+                    <p>Users with version 0.19.0 can also disable badges and personal aspects uploads. Badge selections and personal aspects are returned publicly only when published.</p>
+                    <p>Hiding them does not delete them, and they can be published again later. Send a DM to one of the Admins in the WynnExtras Discord server if you want to delete old aspect data.</p>
+                    <p>You can go to https://wynnextras.com/discord to join our Discord server.</p>
                 </body>
                 </html>
                 """;

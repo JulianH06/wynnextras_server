@@ -34,6 +34,7 @@ public class PersonalAspectDto {
         // Optional fields for backward compatibility with old mod versions
         private String uuid;
         private Long updatedAt;
+        private Boolean published;
 
         public UploadRequest() {}
 
@@ -49,6 +50,16 @@ public class PersonalAspectDto {
 
         public Long getUpdatedAt() { return updatedAt; }
         public void setUpdatedAt(Long updatedAt) { this.updatedAt = updatedAt; }
+
+        public Boolean getPublished() { return published; }
+        public void setPublished(Boolean published) { this.published = published; }
+    }
+
+    public static class PublicationRequest {
+        private Boolean published;
+
+        public Boolean getPublished() { return published; }
+        public void setPublished(Boolean published) { this.published = published; }
     }
 
     public static class PlayerAspectsResponse {

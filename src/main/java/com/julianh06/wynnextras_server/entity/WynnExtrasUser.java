@@ -31,6 +31,9 @@ public class WynnExtrasUser {
     @Column(nullable = false, length = 32, columnDefinition = "varchar(32) default '" + BadgeCatalog.DEFAULT_BADGE_COLOR_ID + "'")
     private String badgeColorId = BadgeCatalog.DEFAULT_BADGE_COLOR_ID;
 
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean badgePublished = true;
+
     @Column(nullable = false)
     private Instant createdAt; // When user first registered
 
@@ -62,6 +65,9 @@ public class WynnExtrasUser {
 
     public String getBadgeColorId() { return badgeColorId; }
     public void setBadgeColorId(String badgeColorId) { this.badgeColorId = badgeColorId; }
+
+    public boolean isBadgePublished() { return badgePublished; }
+    public void setBadgePublished(boolean badgePublished) { this.badgePublished = badgePublished; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

@@ -223,4 +223,9 @@ public class AuthService {
         return session;
     }
 
+    /** Injectable facade around the legacy static session store. */
+    public SessionData validateSessionToken(String token) {
+        return validateSession(token);
+    }
+
 }

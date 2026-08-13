@@ -37,6 +37,19 @@ public class ActiveUserSnapshot {
     @Column(nullable = false)
     private long active14d;
 
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive1d = 0L;
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive3d = 0L;
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive5d = 0L;
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive7d = 0L;
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive10d = 0L;
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive14d = 0L;
+
     public ActiveUserSnapshot() {}
 
     public ActiveUserSnapshot(LocalDate snapshotDate, Instant capturedAt) {
@@ -70,4 +83,26 @@ public class ActiveUserSnapshot {
 
     public long getActive14d() { return active14d; }
     public void setActive14d(long active14d) { this.active14d = active14d; }
+
+    public long getAnonymousActive1d() { return value(anonymousActive1d); }
+    public void setAnonymousActive1d(long value) { this.anonymousActive1d = value; }
+    public long getAnonymousActive3d() { return value(anonymousActive3d); }
+    public void setAnonymousActive3d(long value) { this.anonymousActive3d = value; }
+    public long getAnonymousActive5d() { return value(anonymousActive5d); }
+    public void setAnonymousActive5d(long value) { this.anonymousActive5d = value; }
+    public long getAnonymousActive7d() { return value(anonymousActive7d); }
+    public void setAnonymousActive7d(long value) { this.anonymousActive7d = value; }
+    public long getAnonymousActive10d() { return value(anonymousActive10d); }
+    public void setAnonymousActive10d(long value) { this.anonymousActive10d = value; }
+    public long getAnonymousActive14d() { return value(anonymousActive14d); }
+    public void setAnonymousActive14d(long value) { this.anonymousActive14d = value; }
+
+    public long getCombinedActive1d() { return active1d + getAnonymousActive1d(); }
+    public long getCombinedActive3d() { return active3d + getAnonymousActive3d(); }
+    public long getCombinedActive5d() { return active5d + getAnonymousActive5d(); }
+    public long getCombinedActive7d() { return active7d + getAnonymousActive7d(); }
+    public long getCombinedActive10d() { return active10d + getAnonymousActive10d(); }
+    public long getCombinedActive14d() { return active14d + getAnonymousActive14d(); }
+
+    private static long value(Long value) { return value == null ? 0L : value; }
 }

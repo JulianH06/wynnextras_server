@@ -36,6 +36,9 @@ public class PersonalAspect {
     @Column(length = 50)
     private String modVersion;
 
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean published = true;
+
     public PersonalAspect() {}
 
     public PersonalAspect(String playerUuid, String playerName, String aspectName, String rarity, int amount, String modVersion) {
@@ -72,4 +75,7 @@ public class PersonalAspect {
 
     public String getModVersion() { return modVersion; }
     public void setModVersion(String modVersion) { this.modVersion = modVersion; }
+
+    public boolean isPublished() { return published; }
+    public void setPublished(boolean published) { this.published = published; }
 }

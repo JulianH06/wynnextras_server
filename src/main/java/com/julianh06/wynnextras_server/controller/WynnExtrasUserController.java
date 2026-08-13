@@ -1,9 +1,13 @@
 package com.julianh06.wynnextras_server.controller;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
 import com.julianh06.wynnextras_server.entity.DailyUserActivity;
+import com.julianh06.wynnextras_server.repository.AnonymousUserActivityRepository;
+import com.julianh06.wynnextras_server.repository.AnonymousDailyActivityRepository;
 import com.julianh06.wynnextras_server.repository.DailyUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
+import com.julianh06.wynnextras_server.service.AnonymousTelemetryService;
 import com.julianh06.wynnextras_server.service.AuthService;
 import com.julianh06.wynnextras_server.util.BadgeCatalog;
 import jakarta.transaction.Transactional;
@@ -41,6 +45,18 @@ public class WynnExtrasUserController {
     @Autowired
     private DailyUserActivityRepository dailyUserActivityRepository;
 
+    @Autowired
+    private AnonymousUserActivityRepository anonymousUserActivityRepository;
+
+    @Autowired
+    private AnonymousDailyActivityRepository anonymousDailyActivityRepository;
+
+    @Autowired
+    private AnonymousTelemetryService anonymousTelemetryService;
+
+    @Autowired
+    private AuthService authService;
+
     /**
      * Client heartbeat - registers or updates user activity
      * POST /wynnextras-users/heartbeat
@@ -61,7 +77,7 @@ public class WynnExtrasUserController {
                     .body(Map.of("status","error","message","Missing session token"));
         }
 
-        AuthService.SessionData session = AuthService.validateSession(token);
+        AuthService.SessionData session = authService.validateSessionToken(token);
 
         if (session == null) {
             System.out.println("Session expired");
@@ -114,6 +130,64 @@ public class WynnExtrasUserController {
         }
     }
 
+    /**
+     * Pseudonymous heartbeat. The identifier is only meaningful in the supplied
+     * 30-day period and is never joined to UUID-based data.
+     */
+    @PostMapping("/anonymous-heartbeat")
+    public ResponseEntity<?> anonymousHeartbeat(@RequestBody AnonymousHeartbeatRequest request) {
+        if (request.hasUnknownFields()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "status", "error", "message", "Only anonymousId, period and modVersion are accepted"));
+        }
+        try {
+            anonymousTelemetryService.record(request.getAnonymousId(), request.getPeriod(), request.getModVersion());
+            return ResponseEntity.ok(java.util.Map.of(
+                    "status", "success", "message", "Anonymous heartbeat recorded"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "status", "error", "message", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Error processing anonymous heartbeat", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(java.util.Map.of(
+                    "status", "error", "message", "Error processing anonymous heartbeat"));
+        }
+    }
+
+    /** Updates only badge preferences. It intentionally records no usage activity. */
+    @PostMapping("/badge")
+    @Transactional
+    public ResponseEntity<?> updateBadge(
+            @RequestBody BadgeUpdateRequest request,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(java.util.Map.of("status", "error", "message", "Missing session token"));
+        }
+        AuthService.SessionData session = authService.validateSessionToken(token);
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(java.util.Map.of("status", "error", "message", "Session expired or invalid"));
+        }
+        if (request.getPublished() == null) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "status", "error", "message", "published is required"));
+        }
+
+        Optional<WynnExtrasUser> existing = userRepository.findByUuid(session.uuid);
+        if (existing.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(java.util.Map.of(
+                    "status", "error", "message", "User must send a heartbeat before setting a badge"));
+        }
+
+        WynnExtrasUser user = existing.get();
+        user.setBadgeIconId(BadgeCatalog.normalizeBadgeIconId(request.getBadgeIconId()));
+        user.setBadgeColorId(BadgeCatalog.normalizeBadgeColorId(request.getBadgeColorId()));
+        user.setBadgePublished(request.getPublished());
+        userRepository.save(user);
+        return ResponseEntity.ok(java.util.Map.of("status", "success", "message", "Badge updated"));
+    }
+
     private void recordDailyActivity(String uuid, String username, String modVersion, Instant heartbeatAt) {
         LocalDate activityDate = LocalDate.ofInstant(heartbeatAt, ZoneOffset.UTC);
         DailyUserActivity activity = dailyUserActivityRepository
@@ -138,7 +212,7 @@ public class WynnExtrasUserController {
     public ResponseEntity<?> getActiveUsers() {
         try {
             Instant cutoff = Instant.now().minus(ACTIVE_THRESHOLD);
-            List<WynnExtrasUser> activeUsers = userRepository.findActiveUsersSince(cutoff);
+            List<WynnExtrasUser> activeUsers = userRepository.findPublishedActiveUsersSince(cutoff);
             List<String> activeUuids = activeUsers.stream()
                 .map(WynnExtrasUser::getUuid)
                 .toList();
@@ -159,38 +233,6 @@ public class WynnExtrasUserController {
     }
 
     /**
-     * Get detailed info about active users (admin endpoint)
-     * GET /wynnextras-users/active/details
-     */
-    @GetMapping("/active/details")
-    public ResponseEntity<?> getActiveUsersDetails() {
-        try {
-            Instant cutoff = Instant.now().minus(ACTIVE_THRESHOLD);
-            List<WynnExtrasUser> activeUsers = userRepository.findActiveUsersSince(cutoff);
-
-            List<UserInfo> userInfos = activeUsers.stream()
-                .map(u -> new UserInfo(
-                        u.getUuid(),
-                        u.getUsername(),
-                        u.getModVersion(),
-                        u.getLastSeen().toEpochMilli(),
-                        BadgeCatalog.normalizeBadgeIconId(u.getBadgeIconId()),
-                        BadgeCatalog.normalizeBadgeColorId(u.getBadgeColorId())
-                ))
-                .toList();
-
-            return ResponseEntity.ok(Map.of(
-                "users", userInfos,
-                "count", userInfos.size()
-            ));
-        } catch (Exception e) {
-            logger.error("Error fetching active user details", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("status", "error", "message", "Error fetching active users"));
-        }
-    }
-
-    /**
      * Get statistics about WynnExtras user base
      * GET /wynnextras-users/stats
      */
@@ -200,17 +242,151 @@ public class WynnExtrasUserController {
             Instant cutoff = Instant.now().minus(ACTIVE_THRESHOLD);
             long activeCount = userRepository.countActiveUsersSince(cutoff);
             long totalCount = userRepository.count();
+            long anonymousActiveCount = anonymousUserActivityRepository.countByLastSeenAtAfter(cutoff);
+            long anonymousPeriodCount = anonymousUserActivityRepository.count();
 
-            return ResponseEntity.ok(Map.of(
-                "activeUsers", activeCount,
-                "totalUsers", totalCount,
-                "activeThresholdDays", ACTIVE_THRESHOLD.toDays()
-            ));
+            java.util.Map<String, Object> response = new java.util.LinkedHashMap<>();
+            // Legacy fields intentionally retain their identified-only meaning.
+            response.put("activeUsers", activeCount);
+            response.put("totalUsers", totalCount);
+            response.put("activeThresholdDays", ACTIVE_THRESHOLD.toDays());
+            response.put("identified", java.util.Map.of(
+                    "activeUsers", activeCount, "totalUsers", totalCount));
+            response.put("anonymous", java.util.Map.of(
+                    "activePeriodIds", anonymousActiveCount, "totalPeriodIds", anonymousPeriodCount));
+            response.put("combined", java.util.Map.of(
+                    "activeUsersAndPeriodIds", activeCount + anonymousActiveCount,
+                    "totalUsersAndPeriodIds", totalCount + anonymousPeriodCount));
+            response.put("versions", buildVersionStats(cutoff));
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error fetching user stats", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("status", "error", "message", "Error fetching stats"));
         }
+    }
+
+    private java.util.Map<String, Object> buildVersionStats(Instant cutoff) {
+        java.util.Map<String, Long> identified = new java.util.TreeMap<>();
+        for (WynnExtrasUserRepository.VersionUsage usage : userRepository.findVersionUsageSince(cutoff)) {
+            if (usage.getModVersion() != null) identified.put(usage.getModVersion(), usage.getUserCount());
+        }
+        java.util.Map<String, Long> anonymous = new java.util.TreeMap<>();
+        for (AnonymousUserActivityRepository.VersionUsage usage : anonymousUserActivityRepository.findVersionUsageSince(cutoff)) {
+            if (usage.getModVersion() != null) anonymous.put(usage.getModVersion(), usage.getUserCount());
+        }
+        java.util.Map<String, Long> combined = new java.util.TreeMap<>(identified);
+        anonymous.forEach((version, count) -> combined.merge(version, count, Long::sum));
+        return java.util.Map.of("identified", identified, "anonymous", anonymous, "combined", combined);
+    }
+
+    /** Daily usage and retention with explicit identified/anonymous/combined series. */
+    @GetMapping("/stats/activity")
+    public ResponseEntity<?> getActivityStats() {
+        try {
+            return ResponseEntity.ok(java.util.Map.of(
+                    "dailyActivity", buildDailyActivityStats(),
+                    "retention", buildRetentionStats(),
+                    "retentionNote", "Anonymous retention is limited to one 30-day identifier period"
+            ));
+        } catch (Exception e) {
+            logger.error("Error fetching activity stats", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(java.util.Map.of("status", "error", "message", "Error fetching activity stats"));
+        }
+    }
+
+    /**
+     * Compatibility endpoint for clients that still use the username fallback
+     * when matching rendered player labels. It deliberately exposes only data
+     * already present in the public active badge response.
+     */
+    @Deprecated
+    @GetMapping("/active/details")
+    public ResponseEntity<?> getLegacyActiveUserDetails() {
+        try {
+            Instant cutoff = Instant.now().minus(ACTIVE_THRESHOLD);
+            List<LegacyActiveUserInfo> users = userRepository.findPublishedActiveUsersSince(cutoff).stream()
+                    .map(user -> new LegacyActiveUserInfo(user.getUuid(), user.getUsername()))
+                    .toList();
+
+            return ResponseEntity.ok(Map.of(
+                    "users", users,
+                    "count", users.size()
+            ));
+        } catch (Exception e) {
+            logger.error("Error fetching legacy active user details", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("status", "error", "message", "Error fetching active users"));
+        }
+    }
+
+    private List<java.util.Map<String, Object>> buildDailyActivityStats() {
+        java.util.Map<LocalDate, long[]> identified = dailyRows(dailyUserActivityRepository.findDailyHeartbeatStats());
+        java.util.Map<LocalDate, long[]> anonymous = dailyRows(anonymousDailyActivityRepository.findDailyHeartbeatStats());
+        java.util.Set<LocalDate> dates = new java.util.TreeSet<>(identified.keySet());
+        dates.addAll(anonymous.keySet());
+        return dates.stream().map(date -> {
+            long[] i = identified.getOrDefault(date, new long[2]);
+            long[] a = anonymous.getOrDefault(date, new long[2]);
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("date", date);
+            row.put("identified", java.util.Map.of("uniqueUsers", i[0], "heartbeats", i[1]));
+            row.put("anonymous", java.util.Map.of("uniquePeriodIds", a[0], "heartbeats", a[1]));
+            row.put("combined", java.util.Map.of("uniqueUsersAndPeriodIds", i[0] + a[0], "heartbeats", i[1] + a[1]));
+            return row;
+        }).toList();
+    }
+
+    private List<java.util.Map<String, Object>> buildRetentionStats() {
+        java.util.Map<LocalDate, long[]> identified = retentionRows(
+                dailyUserActivityRepository.findFirstSeenCountsByDate(),
+                dailyUserActivityRepository.findReturnedAfterSevenDayGapCountsByDate(),
+                dailyUserActivityRepository.findDayOneRetentionCountsByDate());
+        java.util.Map<LocalDate, long[]> anonymous = retentionRows(
+                anonymousDailyActivityRepository.findFirstSeenCountsByDate(),
+                anonymousDailyActivityRepository.findReturnedAfterSevenDayGapCountsByDate(),
+                anonymousDailyActivityRepository.findDayOneRetentionCountsByDate());
+        java.util.Set<LocalDate> dates = new java.util.TreeSet<>(identified.keySet());
+        dates.addAll(anonymous.keySet());
+        return dates.stream().map(date -> {
+            long[] i = identified.getOrDefault(date, new long[3]);
+            long[] a = anonymous.getOrDefault(date, new long[3]);
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("date", date);
+            row.put("identified", retentionValues(i));
+            row.put("anonymous", retentionValues(a));
+            row.put("combined", retentionValues(new long[]{i[0] + a[0], i[1] + a[1], i[2] + a[2]}));
+            return row;
+        }).toList();
+    }
+
+    private static java.util.Map<LocalDate, long[]> dailyRows(List<Object[]> rows) {
+        java.util.Map<LocalDate, long[]> result = new java.util.HashMap<>();
+        for (Object[] row : rows) {
+            result.put((LocalDate) row[0], new long[]{
+                    ((Number) row[1]).longValue(), ((Number) row[2]).longValue()});
+        }
+        return result;
+    }
+
+    @SafeVarargs
+    private static java.util.Map<LocalDate, long[]> retentionRows(List<Object[]>... metrics) {
+        java.util.Map<LocalDate, long[]> result = new java.util.HashMap<>();
+        for (int index = 0; index < metrics.length; index++) {
+            for (Object[] row : metrics[index]) {
+                result.computeIfAbsent((LocalDate) row[0], ignored -> new long[3])[index] =
+                        ((Number) row[1]).longValue();
+            }
+        }
+        return result;
+    }
+
+    private static java.util.Map<String, Long> retentionValues(long[] values) {
+        return java.util.Map.of(
+                "firstSeen", values[0],
+                "returnedAfterSevenDayGap", values[1],
+                "dayOneRetained", values[2]);
     }
 
     // Request/Response DTOs
@@ -230,29 +406,35 @@ public class WynnExtrasUserController {
         public void setBadgeColorId(String badgeColorId) { this.badgeColorId = badgeColorId; }
     }
 
-    public static class UserInfo {
-        private String uuid;
-        private String username;
+    public static class AnonymousHeartbeatRequest {
+        private String anonymousId;
+        private long period;
         private String modVersion;
-        private long lastSeen;
+        private final java.util.Map<String, Object> unknownFields = new HashMap<>();
+
+        public String getAnonymousId() { return anonymousId; }
+        public void setAnonymousId(String anonymousId) { this.anonymousId = anonymousId; }
+        public long getPeriod() { return period; }
+        public void setPeriod(long period) { this.period = period; }
+        public String getModVersion() { return modVersion; }
+        public void setModVersion(String modVersion) { this.modVersion = modVersion; }
+
+        @JsonAnySetter
+        public void setUnknownField(String name, Object value) { unknownFields.put(name, value); }
+        public boolean hasUnknownFields() { return !unknownFields.isEmpty(); }
+    }
+
+    public static class BadgeUpdateRequest {
         private String badgeIconId;
         private String badgeColorId;
+        private Boolean published;
 
-        public UserInfo(String uuid, String username, String modVersion, long lastSeen, String badgeIconId, String badgeColorId) {
-            this.uuid = uuid;
-            this.username = username;
-            this.modVersion = modVersion;
-            this.lastSeen = lastSeen;
-            this.badgeIconId = badgeIconId;
-            this.badgeColorId = badgeColorId;
-        }
-
-        public String getUuid() { return uuid; }
-        public String getUsername() { return username; }
-        public String getModVersion() { return modVersion; }
-        public long getLastSeen() { return lastSeen; }
         public String getBadgeIconId() { return badgeIconId; }
+        public void setBadgeIconId(String badgeIconId) { this.badgeIconId = badgeIconId; }
         public String getBadgeColorId() { return badgeColorId; }
+        public void setBadgeColorId(String badgeColorId) { this.badgeColorId = badgeColorId; }
+        public Boolean getPublished() { return published; }
+        public void setPublished(Boolean published) { this.published = published; }
     }
 
     public static class BadgeInfo {
@@ -272,6 +454,19 @@ public class WynnExtrasUserController {
         public String getUsername() { return username; }
         public String getIconId() { return iconId; }
         public String getColorId() { return colorId; }
+    }
+
+    public static class LegacyActiveUserInfo {
+        private final String uuid;
+        private final String username;
+
+        public LegacyActiveUserInfo(String uuid, String username) {
+            this.uuid = uuid;
+            this.username = username;
+        }
+
+        public String getUuid() { return uuid; }
+        public String getUsername() { return username; }
     }
 
     private BadgeInfo toBadgeInfo(WynnExtrasUser user) {

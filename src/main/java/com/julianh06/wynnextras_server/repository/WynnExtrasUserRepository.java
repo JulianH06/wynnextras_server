@@ -31,6 +31,10 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
     @Query("SELECT u FROM WynnExtrasUser u WHERE u.lastSeen > :cutoff")
     List<WynnExtrasUser> findActiveUsersSince(@Param("cutoff") Instant cutoff);
 
+    /** Public badge feed: hidden badge selections must not leak through UUIDs or badge data. */
+    @Query("SELECT u FROM WynnExtrasUser u WHERE u.lastSeen > :cutoff AND u.badgePublished = true")
+    List<WynnExtrasUser> findPublishedActiveUsersSince(@Param("cutoff") Instant cutoff);
+
     /**
      * Minimal data set needed to render the dashboard charts.  In particular,
      * badge data and usernames are not loaded for every user on each /db visit.
@@ -45,7 +49,7 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
     @Query("""
             SELECT u.badgeIconId AS badgeIconId, COUNT(u) AS usageCount
             FROM WynnExtrasUser u
-            WHERE u.lastSeen > :cutoff
+            WHERE u.lastSeen > :cutoff AND u.badgePublished = true
             GROUP BY u.badgeIconId
             ORDER BY COUNT(u) DESC, u.badgeIconId ASC
             """)
@@ -54,7 +58,7 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
     @Query("""
             SELECT u.badgeColorId AS badgeColorId, COUNT(u) AS usageCount
             FROM WynnExtrasUser u
-            WHERE u.lastSeen > :cutoff
+            WHERE u.lastSeen > :cutoff AND u.badgePublished = true
             GROUP BY u.badgeColorId
             ORDER BY COUNT(u) DESC, u.badgeColorId ASC
             """)
@@ -63,7 +67,7 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
     @Query("""
             SELECT u.badgeIconId AS badgeIconId, u.badgeColorId AS badgeColorId, COUNT(u) AS usageCount
             FROM WynnExtrasUser u
-            WHERE u.lastSeen > :cutoff
+            WHERE u.lastSeen > :cutoff AND u.badgePublished = true
             GROUP BY u.badgeIconId, u.badgeColorId
             ORDER BY COUNT(u) DESC, u.badgeIconId ASC, u.badgeColorId ASC
             """)
@@ -80,6 +84,15 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
      */
     @Query("SELECT COUNT(u) FROM WynnExtrasUser u WHERE u.lastSeen > :cutoff")
     long countActiveUsersSince(@Param("cutoff") Instant cutoff);
+
+    @Query("""
+            SELECT u.modVersion AS modVersion, COUNT(u) AS userCount
+            FROM WynnExtrasUser u
+            WHERE u.lastSeen > :cutoff
+            GROUP BY u.modVersion
+            ORDER BY u.modVersion
+            """)
+    List<VersionUsage> findVersionUsageSince(@Param("cutoff") Instant cutoff);
 
     /**
      * Lightweight, paginated projection for the database dashboard's user list.
@@ -122,5 +135,10 @@ public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, 
         String getBadgeIconId();
         String getBadgeColorId();
         long getUsageCount();
+    }
+
+    interface VersionUsage {
+        String getModVersion();
+        long getUserCount();
     }
 }

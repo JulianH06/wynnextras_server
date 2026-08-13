@@ -56,7 +56,7 @@ public class PersonalAspectController {
                     .body(createResponse("error","Missing session token"));
         }
 
-        AuthService.SessionData session = AuthService.validateSession(token);
+        AuthService.SessionData session = mojangAuth.validateSessionToken(token);
 
         if (session == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -72,6 +72,15 @@ public class PersonalAspectController {
         }
 
         try {
+            List<PersonalAspect> storedAspects = personalAspectRepo.findByPlayerUuid(verifiedUuid);
+            // Older clients do not send published. Preserve the player's existing choice;
+            // only brand-new profiles retain the historical public default.
+            boolean published = request.getPublished() != null
+                    ? request.getPublished()
+                    : storedAspects.isEmpty() || storedAspects.get(0).isPublished();
+            if (request.getPublished() != null) {
+                personalAspectRepo.setPublishedByPlayerUuid(verifiedUuid, published);
+            }
             // Save or update each aspect
             for (PersonalAspectDto.AspectData aspect : request.getAspects()) {
                 if(aspect.getAmount() <= 0) continue;
@@ -85,6 +94,7 @@ public class PersonalAspectController {
                     pa.setPlayerName(verifiedUsername);
                     pa.setModVersion(request.getModVersion());
                     pa.setUpdatedAt(Instant.now());
+                    pa.setPublished(published);
                     personalAspectRepo.save(pa);
                 } else {
                     // Create new
@@ -96,6 +106,7 @@ public class PersonalAspectController {
                         aspect.getAmount(),
                         request.getModVersion()
                     );
+                    pa.setPublished(published);
                     personalAspectRepo.save(pa);
                 }
             }
@@ -112,6 +123,33 @@ public class PersonalAspectController {
         }
     }
 
+    /** Change public visibility without deleting or re-uploading personal aspects. */
+    @PostMapping("/publication")
+    @Transactional
+    public ResponseEntity<?> updatePublication(
+            @RequestBody PersonalAspectDto.PublicationRequest request,
+            @RequestHeader(value = "Authorization", required = false) String token) {
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createResponse("error", "Missing session token"));
+        }
+        AuthService.SessionData session = mojangAuth.validateSessionToken(token);
+        if (session == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(createResponse("error", "Session expired or invalid"));
+        }
+        if (request.getPublished() == null) {
+            return ResponseEntity.badRequest().body(createResponse("error", "published is required"));
+        }
+
+        int changed = personalAspectRepo.setPublishedByPlayerUuid(session.uuid, request.getPublished());
+        if (changed == 0) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(createResponse("error", "No aspects found for player"));
+        }
+        return ResponseEntity.ok(createResponse("success", "Aspect publication updated"));
+    }
+
     /**
      * Get player's aspects
      * GET /user?playerUuid=xxx
@@ -125,7 +163,7 @@ public class PersonalAspectController {
             return ResponseEntity.badRequest().body("Invalid UUID format");
         }
 
-        List<PersonalAspect> aspects = personalAspectRepo.findByPlayerUuid(normalizedUuid);
+        List<PersonalAspect> aspects = personalAspectRepo.findByPlayerUuidAndPublishedTrue(normalizedUuid);
 
         if (aspects.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)

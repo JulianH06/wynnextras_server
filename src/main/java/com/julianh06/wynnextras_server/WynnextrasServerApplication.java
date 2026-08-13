@@ -1,10 +1,13 @@
 package com.julianh06.wynnextras_server;
 
 import com.julianh06.wynnextras_server.entity.ActiveUserSnapshot;
+import com.julianh06.wynnextras_server.entity.AnonymousUserActivity;
 import com.julianh06.wynnextras_server.entity.GuildUserSnapshot;
 import com.julianh06.wynnextras_server.entity.VersionUsageSnapshot;
 import com.julianh06.wynnextras_server.entity.WynncraftUsageSnapshot;
 import com.julianh06.wynnextras_server.repository.ActiveUserSnapshotRepository;
+import com.julianh06.wynnextras_server.repository.AnonymousDailyActivityRepository;
+import com.julianh06.wynnextras_server.repository.AnonymousUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.DailyUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.GuildUserSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.VersionUsageSnapshotRepository;
@@ -57,6 +60,12 @@ public class WynnextrasServerApplication {
 	private DailyUserActivityRepository dailyUserActivityRepository;
 
 	@Autowired
+	private AnonymousUserActivityRepository anonymousUserActivityRepository;
+
+	@Autowired
+	private AnonymousDailyActivityRepository anonymousDailyActivityRepository;
+
+	@Autowired
 	private VersionUsageSnapshotRepository versionUsageSnapshotRepository;
 
 	@Autowired
@@ -79,6 +88,7 @@ public class WynnextrasServerApplication {
 		Instant dashboardCutoff = Instant.ofEpochSecond(0);
 		List<WynnExtrasUserRepository.DbDashboardUser> allUsers =
 				wynnExtrasUserRepository.findDbDashboardUsers(dashboardCutoff);
+		List<AnonymousUserActivity> anonymousActivities = anonymousUserActivityRepository.findAll();
 
 		ZoneId utc = ZoneId.of("UTC");
 		DateTimeFormatter dayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(utc);
@@ -153,6 +163,28 @@ public class WynnextrasServerApplication {
 			if (c4l.length() > 0) { c4l.append(","); c4d.append(","); }
 			c4l.append('"').append(e.getKey()).append('"');
 			c4d.append(e.getValue());
+		}
+
+		Map<String, Integer> anonymousVersionMap = new LinkedHashMap<>();
+		for (AnonymousUserActivity activity : anonymousActivities) {
+			if (activity.getModVersion() == null || activity.getModVersion().isBlank()) continue;
+			anonymousVersionMap.merge(activity.getModVersion(), 1, Integer::sum);
+		}
+		Map<String, Integer> combinedVersionMap = new LinkedHashMap<>(versionMap);
+		anonymousVersionMap.forEach((version, count) -> combinedVersionMap.merge(version, count, Integer::sum));
+		List<Map.Entry<String, Integer>> anonymousVersionEntries = new ArrayList<>(anonymousVersionMap.entrySet());
+		List<Map.Entry<String, Integer>> combinedVersionEntries = new ArrayList<>(combinedVersionMap.entrySet());
+		anonymousVersionEntries.sort((a, b) -> b.getValue() - a.getValue());
+		combinedVersionEntries.sort((a, b) -> b.getValue() - a.getValue());
+		StringBuilder caVersionLabels = new StringBuilder(), caVersionData = new StringBuilder();
+		StringBuilder ccVersionLabels = new StringBuilder(), ccVersionData = new StringBuilder();
+		for (Map.Entry<String, Integer> entry : anonymousVersionEntries) {
+			appendCsv(caVersionLabels, jsQuote(entry.getKey()));
+			appendCsv(caVersionData, Integer.toString(entry.getValue()));
+		}
+		for (Map.Entry<String, Integer> entry : combinedVersionEntries) {
+			appendCsv(ccVersionLabels, jsQuote(entry.getKey()));
+			appendCsv(ccVersionData, Integer.toString(entry.getValue()));
 		}
 
 		// ── Charts 4d/4e/4f: Badge icon, color and combination usage ─────
@@ -232,6 +264,8 @@ public class WynnextrasServerApplication {
 		Collections.reverse(activeSnapshots);
 		StringBuilder c6l = new StringBuilder(), c6d1 = new StringBuilder(), c6d3 = new StringBuilder(), c6d5 = new StringBuilder();
 		StringBuilder c6d7 = new StringBuilder(), c6d10 = new StringBuilder(), c6d14 = new StringBuilder();
+		StringBuilder caSnapshotIdentified7 = new StringBuilder(), caSnapshotAnonymous7 = new StringBuilder();
+		StringBuilder caSnapshotCombined7 = new StringBuilder();
 		for (ActiveUserSnapshot s : activeSnapshots) {
 			appendCsv(c6l, jsQuote(s.getSnapshotDate().toString()));
 			appendCsv(c6d1, Long.toString(s.getActive1d()));
@@ -240,6 +274,9 @@ public class WynnextrasServerApplication {
 			appendCsv(c6d7, Long.toString(s.getActive7d()));
 			appendCsv(c6d10, Long.toString(s.getActive10d()));
 			appendCsv(c6d14, Long.toString(s.getActive14d()));
+			appendCsv(caSnapshotIdentified7, Long.toString(s.getActive7d()));
+			appendCsv(caSnapshotAnonymous7, Long.toString(s.getAnonymousActive7d()));
+			appendCsv(caSnapshotCombined7, Long.toString(s.getCombinedActive7d()));
 		}
 
 		// ── Chart 6b: Wynncraft-wide daily usage percentage ──────────────
@@ -288,9 +325,65 @@ public class WynnextrasServerApplication {
 			appendCsv(c8d1, Long.toString(dayOneRetentionCounts.getOrDefault(day, 0L)));
 		}
 
+		Map<LocalDate, long[]> identifiedDailyStats = toDailyStatsMap(heartbeatRows);
+		Map<LocalDate, long[]> anonymousDailyStats =
+				toDailyStatsMap(anonymousDailyActivityRepository.findDailyHeartbeatStats());
+		Set<LocalDate> telemetryDates = new java.util.TreeSet<>(identifiedDailyStats.keySet());
+		telemetryDates.addAll(anonymousDailyStats.keySet());
+		StringBuilder caDailyLabels = new StringBuilder();
+		StringBuilder caDailyIdentifiedUsers = new StringBuilder(), caDailyAnonymousIds = new StringBuilder();
+		StringBuilder caDailyCombined = new StringBuilder(), caHeartbeatIdentified = new StringBuilder();
+		StringBuilder caHeartbeatAnonymous = new StringBuilder(), caHeartbeatCombined = new StringBuilder();
+		for (LocalDate day : telemetryDates) {
+			long[] identified = identifiedDailyStats.getOrDefault(day, new long[2]);
+			long[] anonymous = anonymousDailyStats.getOrDefault(day, new long[2]);
+			appendCsv(caDailyLabels, jsQuote(day.toString()));
+			appendCsv(caDailyIdentifiedUsers, Long.toString(identified[0]));
+			appendCsv(caDailyAnonymousIds, Long.toString(anonymous[0]));
+			appendCsv(caDailyCombined, Long.toString(identified[0] + anonymous[0]));
+			appendCsv(caHeartbeatIdentified, Long.toString(identified[1]));
+			appendCsv(caHeartbeatAnonymous, Long.toString(anonymous[1]));
+			appendCsv(caHeartbeatCombined, Long.toString(identified[1] + anonymous[1]));
+		}
+
+		Map<LocalDate, Long> anonymousFirstSeenCounts =
+				toDateCountMap(anonymousDailyActivityRepository.findFirstSeenCountsByDate());
+		Map<LocalDate, Long> anonymousReturnedAfterGapCounts =
+				toDateCountMap(anonymousDailyActivityRepository.findReturnedAfterSevenDayGapCountsByDate());
+		Map<LocalDate, Long> anonymousDayOneRetentionCounts =
+				toDateCountMap(anonymousDailyActivityRepository.findDayOneRetentionCountsByDate());
+		Set<LocalDate> retentionDates = new java.util.TreeSet<>(telemetryDates);
+		retentionDates.addAll(firstSeenCounts.keySet());
+		retentionDates.addAll(returnedAfterGapCounts.keySet());
+		retentionDates.addAll(dayOneRetentionCounts.keySet());
+		retentionDates.addAll(anonymousFirstSeenCounts.keySet());
+		retentionDates.addAll(anonymousReturnedAfterGapCounts.keySet());
+		retentionDates.addAll(anonymousDayOneRetentionCounts.keySet());
+		StringBuilder caRetentionLabels = new StringBuilder();
+		StringBuilder caRetentionNew = new StringBuilder(), caRetentionReturned = new StringBuilder();
+		StringBuilder caRetentionD1 = new StringBuilder(), ccRetentionNew = new StringBuilder();
+		StringBuilder ccRetentionReturned = new StringBuilder(), ccRetentionD1 = new StringBuilder();
+		for (LocalDate day : retentionDates) {
+			long identifiedNew = firstSeenCounts.getOrDefault(day, 0L);
+			long identifiedReturned = returnedAfterGapCounts.getOrDefault(day, 0L);
+			long identifiedD1 = dayOneRetentionCounts.getOrDefault(day, 0L);
+			long anonymousNew = anonymousFirstSeenCounts.getOrDefault(day, 0L);
+			long anonymousReturned = anonymousReturnedAfterGapCounts.getOrDefault(day, 0L);
+			long anonymousD1 = anonymousDayOneRetentionCounts.getOrDefault(day, 0L);
+			appendCsv(caRetentionLabels, jsQuote(day.toString()));
+			appendCsv(caRetentionNew, Long.toString(anonymousNew));
+			appendCsv(caRetentionReturned, Long.toString(anonymousReturned));
+			appendCsv(caRetentionD1, Long.toString(anonymousD1));
+			appendCsv(ccRetentionNew, Long.toString(identifiedNew + anonymousNew));
+			appendCsv(ccRetentionReturned, Long.toString(identifiedReturned + anonymousReturned));
+			appendCsv(ccRetentionD1, Long.toString(identifiedD1 + anonymousD1));
+		}
+
 		LocalDate todayUtc = LocalDate.now(ZoneOffset.UTC);
 		long newToday = firstSeenCounts.getOrDefault(todayUtc, 0L);
 		long returnedToday = returnedAfterGapCounts.getOrDefault(todayUtc, 0L);
+		long anonymousNewToday = anonymousFirstSeenCounts.getOrDefault(todayUtc, 0L);
+		long anonymousReturnedToday = anonymousReturnedAfterGapCounts.getOrDefault(todayUtc, 0L);
 		long inactive7 = allUsers.stream().filter(u -> u.getLastSeen() == null || !u.getLastSeen().isAfter(now.minus(7, java.time.temporal.ChronoUnit.DAYS))).count();
 		long inactive14 = allUsers.stream().filter(u -> u.getLastSeen() == null || !u.getLastSeen().isAfter(now.minus(14, java.time.temporal.ChronoUnit.DAYS))).count();
 		long inactive30 = allUsers.stream().filter(u -> u.getLastSeen() == null || !u.getLastSeen().isAfter(now.minus(30, java.time.temporal.ChronoUnit.DAYS))).count();
@@ -379,6 +472,8 @@ public class WynnextrasServerApplication {
 			c4colors.append('"').append(pieColors[vi % pieColors.length]).append('"');
 			vi++;
 		}
+		StringBuilder caVersionColors = chartColors(anonymousVersionEntries.size(), pieColors);
+		StringBuilder ccVersionColors = chartColors(combinedVersionEntries.size(), pieColors);
 
 		sb.append("""
 				<!DOCTYPE html>
@@ -424,6 +519,10 @@ public class WynnextrasServerApplication {
 
 		long activeUsers7  = allUsers.stream().filter(u -> u.getLastSeen() != null && u.getLastSeen().isAfter(cutoff7)).count();
 		long activeUsers14 = allUsers.stream().filter(u -> u.getLastSeen() != null && u.getLastSeen().isAfter(cutoff14)).count();
+		long anonymousActive7 = anonymousActivities.stream()
+				.filter(activity -> activity.getLastSeenAt() != null && activity.getLastSeenAt().isAfter(cutoff7)).count();
+		long anonymousActive14 = anonymousActivities.stream()
+				.filter(activity -> activity.getLastSeenAt() != null && activity.getLastSeenAt().isAfter(cutoff14)).count();
 
 		sb.append("<h1>WynnExtras DB</h1>");
 		sb.append("<p class=\"subtitle\">Total users: ").append(allUsers.size())
@@ -440,6 +539,36 @@ public class WynnextrasServerApplication {
 				.append(latestUsagePercent == null ? "n/a" : formatNumber(latestUsagePercent, 2) + "%")
 				.append("</div></div>");
 		sb.append("</div>");
+
+		sb.append("<h2 style=\"color:#b464ff;font-size:15px;letter-spacing:2px;margin:30px 0 6px;max-width:1200px\">ANONYMOUS TELEMETRY</h2>");
+		sb.append("<p class=\"subtitle\" style=\"margin-bottom:16px\">Anonymous values count rotating 30-day period IDs, not globally unique people. Combined values add identified users and anonymous period IDs. Existing identified-only charts remain unchanged.</p>");
+		sb.append("<div class=\"metric-grid\">");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Identified users</div><div class=\"metric-value\">").append(allUsers.size()).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Anonymous period IDs</div><div class=\"metric-value\">").append(anonymousActivities.size()).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Combined identity units</div><div class=\"metric-value\">").append(allUsers.size() + anonymousActivities.size()).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Identified active 7d</div><div class=\"metric-value\">").append(activeUsers7).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Anonymous active 7d</div><div class=\"metric-value\">").append(anonymousActive7).append("</div></div>");
+		sb.append("<div class=\"metric\"><div class=\"metric-label\">Combined active 7d</div><div class=\"metric-value\">").append(activeUsers7 + anonymousActive7).append("</div></div>");
+		sb.append("</div>");
+		sb.append("<p class=\"subtitle\" style=\"margin-bottom:16px\">Active 14d: identified ").append(activeUsers14)
+				.append(" · anonymous period IDs ").append(anonymousActive14)
+				.append(" · combined ").append(activeUsers14 + anonymousActive14)
+				.append(" &nbsp;·&nbsp; New anonymous period IDs today: ").append(anonymousNewToday)
+				.append(" &nbsp;·&nbsp; Anonymous returns today: ").append(anonymousReturnedToday).append("</p>");
+		sb.append("<div class=\"grid\" style=\"max-width:1200px;margin-bottom:30px\">");
+		sb.append("<div class=\"card\"><div class=\"card-title\">7-day active telemetry snapshots</div><canvas id=\"ca1\" height=\"80\"></canvas></div>");
+		sb.append("<div class=\"grid grid-2\">");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Daily unique telemetry activity (UTC)</div><canvas id=\"ca2\" height=\"130\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Daily heartbeat volume by telemetry mode (UTC)</div><canvas id=\"ca3\" height=\"130\"></canvas></div>");
+		sb.append("</div>");
+		sb.append("<div class=\"grid grid-2\">");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Anonymous retention within a 30-day period</div><canvas id=\"ca4\" height=\"130\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Combined identified + anonymous retention</div><canvas id=\"ca5\" height=\"130\"></canvas></div>");
+		sb.append("</div>");
+		sb.append("<div class=\"grid grid-2\">");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Anonymous period IDs by mod version</div><canvas id=\"ca6\"></canvas></div>");
+		sb.append("<div class=\"card\"><div class=\"card-title\">Combined identity units by mod version</div><canvas id=\"ca7\"></canvas></div>");
+		sb.append("</div></div>");
 		sb.append("<div class=\"grid\" style=\"max-width:1200px\">");
 
 		// Chart 1
@@ -515,6 +644,49 @@ public class WynnextrasServerApplication {
 		sb.append("<script>\nconst opts = (extra={}) => ({ responsive:true, plugins:{ legend:{ labels:{ color:'#c8d8e8', font:{size:11} } } }, scales:{ x:{ ticks:{color:'#4a6080',maxTicksLimit:14}, grid:{color:'#1e2530'} }, y:{ beginAtZero:true, ticks:{color:'#4a6080'}, grid:{color:'#1e2530'} } }, ...extra });\n");
 		sb.append("const doughnutOpts = { responsive:true, plugins:{ legend:{ position:'right', labels:{ color:'#c8d8e8', font:{size:11}, padding:12 } }, tooltip:{ callbacks:{ label: function(ctx){ const total=ctx.dataset.data.reduce((a,b)=>a+b,0); const pct=total>0?((ctx.raw/total)*100).toFixed(1):'0.0'; return ' '+ctx.label+': '+ctx.raw+' ('+pct+'%)'; } } } } };\n");
 		sb.append("const badgeChartColors = count => Array.from({length:count},(_,i)=>'hsla('+Math.round(i*360/Math.max(count,1))+', 72%, 58%, 0.75)');\n");
+
+		// Anonymous telemetry charts are additive; existing identified chart definitions below are unchanged.
+		sb.append("new Chart(document.getElementById('ca1'),{ type:'line', data:{ labels:[").append(c6l)
+				.append("], datasets:[{ label:'Identified users', data:[").append(caSnapshotIdentified7)
+				.append("], borderColor:'#00c8ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 },")
+				.append("{ label:'Anonymous period IDs', data:[").append(caSnapshotAnonymous7)
+				.append("], borderColor:'#b464ff', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 },")
+				.append("{ label:'Combined identity units', data:[").append(caSnapshotCombined7)
+				.append("], borderColor:'#00e5a0', backgroundColor:'transparent', borderWidth:2, pointRadius:1, tension:0.25 }] }, options:opts() });\n");
+		sb.append("new Chart(document.getElementById('ca2'),{ type:'bar', data:{ labels:[").append(caDailyLabels)
+				.append("], datasets:[{ label:'Identified users', data:[").append(caDailyIdentifiedUsers)
+				.append("], backgroundColor:'rgba(0,200,255,0.35)', borderColor:'#00c8ff', borderWidth:1 },")
+				.append("{ label:'Anonymous period IDs', data:[").append(caDailyAnonymousIds)
+				.append("], backgroundColor:'rgba(180,100,255,0.35)', borderColor:'#b464ff', borderWidth:1 },")
+				.append("{ label:'Combined identity units', data:[").append(caDailyCombined)
+				.append("], type:'line', borderColor:'#00e5a0', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.25 }] }, options:opts() });\n");
+		sb.append("new Chart(document.getElementById('ca3'),{ type:'line', data:{ labels:[").append(caDailyLabels)
+				.append("], datasets:[{ label:'Identified heartbeats', data:[").append(caHeartbeatIdentified)
+				.append("], borderColor:'#00c8ff', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.25 },")
+				.append("{ label:'Anonymous heartbeats', data:[").append(caHeartbeatAnonymous)
+				.append("], borderColor:'#b464ff', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.25 },")
+				.append("{ label:'Combined heartbeats', data:[").append(caHeartbeatCombined)
+				.append("], borderColor:'#00e5a0', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.25 }] }, options:opts() });\n");
+		sb.append("new Chart(document.getElementById('ca4'),{ type:'bar', data:{ labels:[").append(caRetentionLabels)
+				.append("], datasets:[{ label:'New period IDs', data:[").append(caRetentionNew)
+				.append("], backgroundColor:'rgba(180,100,255,0.38)', borderColor:'#b464ff', borderWidth:1 },")
+				.append("{ label:'Returned after 7d gap', data:[").append(caRetentionReturned)
+				.append("], backgroundColor:'rgba(255,180,0,0.38)', borderColor:'#ffb400', borderWidth:1 },")
+				.append("{ label:'D1 retained', data:[").append(caRetentionD1)
+				.append("], type:'line', borderColor:'#ff4560', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.25 }] }, options:opts() });\n");
+		sb.append("new Chart(document.getElementById('ca5'),{ type:'bar', data:{ labels:[").append(caRetentionLabels)
+				.append("], datasets:[{ label:'New users + period IDs', data:[").append(ccRetentionNew)
+				.append("], backgroundColor:'rgba(0,229,160,0.38)', borderColor:'#00e5a0', borderWidth:1 },")
+				.append("{ label:'Returned after 7d gap', data:[").append(ccRetentionReturned)
+				.append("], backgroundColor:'rgba(255,180,0,0.38)', borderColor:'#ffb400', borderWidth:1 },")
+				.append("{ label:'D1 retained', data:[").append(ccRetentionD1)
+				.append("], type:'line', borderColor:'#ff4560', backgroundColor:'transparent', borderWidth:2, pointRadius:0, tension:0.25 }] }, options:opts() });\n");
+		sb.append("new Chart(document.getElementById('ca6'),{ type:'doughnut', data:{ labels:[").append(caVersionLabels)
+				.append("], datasets:[{ data:[").append(caVersionData).append("], backgroundColor:[")
+				.append(caVersionColors).append("], borderColor:'#111419', borderWidth:2 }] }, options:doughnutOpts });\n");
+		sb.append("new Chart(document.getElementById('ca7'),{ type:'doughnut', data:{ labels:[").append(ccVersionLabels)
+				.append("], datasets:[{ data:[").append(ccVersionData).append("], backgroundColor:[")
+				.append(ccVersionColors).append("], borderColor:'#111419', borderWidth:2 }] }, options:doughnutOpts });\n");
 
 		// Chart 1 script
 		sb.append("new Chart(document.getElementById('c1'),{ type:'line', data:{ labels:[").append(c1l)
@@ -868,20 +1040,41 @@ public class WynnextrasServerApplication {
 	private static Map<LocalDate, Long> toDateCountMap(List<Object[]> rows) {
 		Map<LocalDate, Long> counts = new LinkedHashMap<>();
 		for (Object[] row : rows) {
-			Object dateValue = row[0];
-			LocalDate date = dateValue instanceof LocalDate localDate
-					? localDate
-					: dateValue instanceof java.sql.Date sqlDate
-							? sqlDate.toLocalDate()
-							: LocalDate.parse(dateValue.toString().substring(0, 10));
-			counts.put(date, ((Number) row[1]).longValue());
+			counts.put(toLocalDate(row[0]), ((Number) row[1]).longValue());
 		}
 		return counts;
+	}
+
+	private static Map<LocalDate, long[]> toDailyStatsMap(List<Object[]> rows) {
+		Map<LocalDate, long[]> stats = new LinkedHashMap<>();
+		for (Object[] row : rows) {
+			stats.put(toLocalDate(row[0]), new long[]{
+					((Number) row[1]).longValue(),
+					((Number) row[2]).longValue()
+			});
+		}
+		return stats;
+	}
+
+	private static LocalDate toLocalDate(Object dateValue) {
+		return dateValue instanceof LocalDate localDate
+				? localDate
+				: dateValue instanceof java.sql.Date sqlDate
+						? sqlDate.toLocalDate()
+						: LocalDate.parse(dateValue.toString().substring(0, 10));
 	}
 
 	private static void appendCsv(StringBuilder sb, String value) {
 		if (sb.length() > 0) sb.append(",");
 		sb.append(value);
+	}
+
+	private static StringBuilder chartColors(int count, String[] colors) {
+		StringBuilder result = new StringBuilder();
+		for (int index = 0; index < count; index++) {
+			appendCsv(result, jsQuote(colors[index % colors.length]));
+		}
+		return result;
 	}
 
 	private static void appendTimelineDataset(StringBuilder sb, String label, StringBuilder data, String color) {
@@ -1397,10 +1590,10 @@ public class WynnextrasServerApplication {
 				    </div>
 
 				    <div class="card">
-				      <div class="card-title">Wipe Raid Pool — einzelner Raid</div>
+				      <div class="card-title">Wipe Raid Pool — single raid</div>
 				      <div class="card-desc">
-				        Löscht den approved pool + alle submissions für diesen Raid in der aktuellen Woche.
-				        Nützlich wenn ein neuer Pool früher als normal erscheint.
+				        Deletes the approved pool and all submissions for this raid in the current week.
+				        Useful when a new pool appears earlier than usual.
 				      </div>
 				      <div class="chip-group" id="raid-chips">
 				        <button class="chip" data-val="NOTG">NOTG</button>
@@ -1410,17 +1603,17 @@ public class WynnextrasServerApplication {
 				      </div>
 				      <div class="card-actions">
 				        <button class="btn btn-warn" onclick="wipeRaid()">
-				          <span>⚡</span> Ausgewählte wipen
+				          <span>⚡</span> Wipe selected
 				        </button>
 				      </div>
 				    </div>
 				
 				    <div class="card">
-				      <div class="card-title">Wipe Raid Pool — alle Raids</div>
-				      <div class="card-desc">Löscht alle approved pools + submissions aller Raids der aktuellen Woche.</div>
+				      <div class="card-title">Wipe Raid Pool — all raids</div>
+				      <div class="card-desc">Deletes all approved pools and submissions for every raid in the current week.</div>
 				      <div class="card-actions">
-				        <button class="btn btn-danger" onclick="confirm('Wipe ALLE Raid Loot Pools?', () => doWipe('/admin/loot-pool/raid', 'Alle Raid Pools gewiped'))">
-				          ✕ Alle Raids wipen
+				        <button class="btn btn-danger" onclick="confirm('Wipe ALL Raid Loot Pools?', () => doWipe('/admin/loot-pool/raid', 'All raid pools wiped'))">
+				          ✕ Wipe all raids
 				        </button>
 				      </div>
 				    </div>
@@ -1434,8 +1627,8 @@ public class WynnextrasServerApplication {
 				    </div>
 				
 				    <div class="card">
-				      <div class="card-title">Wipe Lootrun Pool — einzelne Zone</div>
-				      <div class="card-desc">Löscht den approved pool + alle submissions für diese Lootrun-Zone.</div>
+				      <div class="card-title">Wipe Lootrun Pool — single zone</div>
+				      <div class="card-desc">Deletes the approved pool and all submissions for this lootrun zone.</div>
 				      <div class="chip-group" id="lootrun-chips">
 				        <button class="chip chip-run" data-val="SE">SE</button>
 				        <button class="chip chip-run" data-val="SI">SI</button>
@@ -1445,17 +1638,17 @@ public class WynnextrasServerApplication {
 				      </div>
 				      <div class="card-actions">
 				        <button class="btn btn-accent" onclick="wipeLootrun()">
-				          <span>⚡</span> Ausgewählte wipen
+				          <span>⚡</span> Wipe selected
 				        </button>
 				      </div>
 				    </div>
 				
 				    <div class="card">
-				      <div class="card-title">Wipe Lootrun Pool — alle Zonen</div>
-				      <div class="card-desc">Löscht alle Lootrun approved pools + submissions.</div>
+				      <div class="card-title">Wipe Lootrun Pool — all zones</div>
+				      <div class="card-desc">Deletes all approved lootrun pools and submissions.</div>
 				      <div class="card-actions">
-				        <button class="btn btn-danger" onclick="confirm('Wipe ALLE Lootrun Loot Pools?', () => doWipe('/admin/loot-pool/lootrun', 'Alle Lootrun Pools gewiped'))">
-				          ✕ Alle Lootruns wipen
+				        <button class="btn btn-danger" onclick="confirm('Wipe ALL Lootrun Loot Pools?', () => doWipe('/admin/loot-pool/lootrun', 'All lootrun pools wiped'))">
+				          ✕ Wipe all lootrun pools
 				        </button>
 				      </div>
 				    </div>
@@ -1469,23 +1662,23 @@ public class WynnextrasServerApplication {
 				    </div>
 				
 				    <div class="card">
-				      <div class="card-title">Stale Aspects aus Wynn API wipen</div>
+				      <div class="card-title">Wipe stale aspects from the Wynn API</div>
 				      <div class="card-desc">
-				        Holt die aktuellen Aspect-Namen aus Wynncraft und zeigt alle DB-Namen, die dort nicht mehr existieren. Gelöscht wird erst nach Preview und Bestätigung.
+				        Fetches the current aspect names from Wynncraft and shows database names that no longer exist. Nothing is deleted until after preview and confirmation.
 				      </div>
 				      <div class="card-actions">
-				        <button class="btn btn-accent" id="stale-preview-btn" onclick="previewStaleAspects()">Preview laden</button>
-				        <button class="btn btn-danger" id="stale-delete-btn" onclick="deleteStaleAspects()" disabled>Stale Aspects löschen</button>
+				        <button class="btn btn-accent" id="stale-preview-btn" onclick="previewStaleAspects()">Load preview</button>
+				        <button class="btn btn-danger" id="stale-delete-btn" onclick="deleteStaleAspects()" disabled>Delete stale aspects</button>
 				      </div>
 				      <div id="stale-aspect-preview" class="stale-preview">
-				        Noch keine Preview geladen.
+				        No preview loaded yet.
 				      </div>
 				    </div>
 				
 				    <div class="card">
-				      <div class="card-title">Umbenannte Aspects wipen (bekannte)</div>
+				      <div class="card-title">Wipe known renamed aspects</div>
 				      <div class="card-desc">
-				        Diese Aspects wurden in Wynn umbenannt — die alten Namen werden bei allen Usern gelöscht.
+				        These aspects were renamed in Wynn. The old names will be deleted for all users.
 				      </div>
 				      <div class="card-actions" id="known-aspect-btns">
 				        <button class="btn btn-warn" onclick="wipeAspect('Aspect of Upkeep Charges')">
@@ -1501,24 +1694,24 @@ public class WynnextrasServerApplication {
 				    </div>
 				
 				    <div class="card">
-				      <div class="card-title">Custom Aspect-Name wipen</div>
+				      <div class="card-title">Wipe a custom aspect name</div>
 				      <div class="card-desc">
-				        Beliebigen Aspect-Namen bei allen Usern löschen. Exakt so eingeben wie er in der DB steht.
+				        Delete any aspect name for all users. Enter it exactly as stored in the database.
 				      </div>
 				      <div class="input-row">
-				        <input type="text" id="custom-aspect" placeholder="z.B. Aspect of Something Old" />
-				        <button class="btn btn-danger" onclick="wipeCustomAspect()">✕ Wipen</button>
+				        <input type="text" id="custom-aspect" placeholder="e.g. Aspect of Something Old" />
+				        <button class="btn btn-danger" onclick="wipeCustomAspect()">✕ Wipe</button>
 				      </div>
 				    </div>
 				
 				    <div class="card">
-				      <div class="card-title">Wipe alle Aspects eines Spielers</div>
+				      <div class="card-title">Wipe all aspects for a player</div>
 				      <div class="card-desc">
-				        UUID des Spielers (ohne Bindestriche, 32 Zeichen hex).
+				        Player UUID without hyphens, using 32 hexadecimal characters.
 				      </div>
 				      <div class="input-row">
-				        <input type="text" id="player-uuid" placeholder="z.B. 069a79f444e94726a5befca90e38aaf5" maxlength="36" />
-				        <button class="btn btn-danger" onclick="wipePlayerAspects()">✕ Wipen</button>
+				        <input type="text" id="player-uuid" placeholder="e.g. 069a79f444e94726a5befca90e38aaf5" maxlength="36" />
+				        <button class="btn btn-danger" onclick="wipePlayerAspects()">✕ Wipe</button>
 				      </div>
 				    </div>
 				  </div>
@@ -1526,23 +1719,23 @@ public class WynnextrasServerApplication {
 				  <!-- MISC -->
 				  <div class="section">
 				    <div class="section-header">
-				      <span class="section-label">Sonstiges</span>
+				      <span class="section-label">Miscellaneous</span>
 				      <div class="section-line"></div>
 				    </div>
 				    <div class="card">
-				      <div class="card-title">Verified Users neu laden</div>
-				      <div class="card-desc">Lädt die Verified-User-Liste neu aus der Datei (VERIFIED_USERS.md).</div>
+				      <div class="card-title">Reload verified users</div>
+				      <div class="card-desc">Reloads the verified-user list from the file (VERIFIED_USERS.md).</div>
 				      <div class="card-actions">
 				        <button class="btn btn-accent" onclick="reloadVerified()">↻ Reload</button>
 				      </div>
 				    </div>
 				    <div class="card">
-				      <div class="card-title">Wynncraft Usage Snapshot auslösen</div>
+				      <div class="card-title">Capture Wynncraft usage snapshot</div>
 				      <div class="card-desc">
-				        Holt sofort die aktuelle Wynncraft-Online-Liste und berechnet den Usage-Snapshot für den aktuellen UTC-Tag neu.
+				        Immediately fetches the current Wynncraft online list and recalculates the usage snapshot for the current UTC day.
 				      </div>
 				      <div class="card-actions">
-				        <button class="btn btn-accent" id="usage-snapshot-btn" onclick="captureUsageSnapshot()">Snapshot auslösen</button>
+				        <button class="btn btn-accent" id="usage-snapshot-btn" onclick="captureUsageSnapshot()">Capture snapshot</button>
 				      </div>
 				    </div>
 				  </div>
@@ -1551,11 +1744,11 @@ public class WynnextrasServerApplication {
 				<!-- Confirm Modal -->
 				<div id="modal-overlay">
 				  <div id="modal">
-				    <h2>⚠ BESTÄTIGEN</h2>
+				    <h2>⚠ CONFIRM</h2>
 				    <p id="modal-text"></p>
 				    <div class="modal-btns">
-				      <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
-				      <button class="btn btn-danger" id="modal-confirm-btn" onclick="runConfirmed()">Bestätigen</button>
+				      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+				      <button class="btn btn-danger" id="modal-confirm-btn" onclick="runConfirmed()">Confirm</button>
 				    </div>
 				  </div>
 				</div>
@@ -1643,40 +1836,40 @@ public class WynnextrasServerApplication {
 				  }
 				
 				  async function doWipe(path, successMsg, params = {}) {
-				    toast('Wipe läuft...', 'inf');
+				    toast('Wipe in progress...', 'inf');
 				    try {
 				      const r = await api('DELETE', path, params);
 				      if (r.ok) {
 				        toast('✓ ' + successMsg, 'ok');
 				      } else {
-				        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+				        toast('✗ Error ' + r.status + ': ' + r.text, 'err');
 				      }
 				    } catch (e) {
-				      toast('✗ Netzwerkfehler: ' + e.message, 'err');
+				      toast('✗ Network error: ' + e.message, 'err');
 				    }
 				  }
 				
 				  // --- Actions ---
 				  function wipeRaid() {
-				    if (!selectedRaid) { toast('Bitte erst einen Raid auswählen', 'err'); return; }
+				    if (!selectedRaid) { toast('Select a raid first', 'err'); return; }
 				    confirm(
-				      `Loot Pool für <code>${selectedRaid}</code> wirklich wipen?<br><br>Approved pool + alle Submissions werden gelöscht.`,
-				      () => doWipe('/admin/loot-pool/raid', `Raid Pool gewiped: ${selectedRaid}`, { raidType: selectedRaid })
+				      `Really wipe the loot pool for <code>${selectedRaid}</code>?<br><br>The approved pool and all submissions will be deleted.`,
+				      () => doWipe('/admin/loot-pool/raid', `Raid pool wiped: ${selectedRaid}`, { raidType: selectedRaid })
 				    );
 				  }
 				
 				  function wipeLootrun() {
-				    if (!selectedLootrun) { toast('Bitte erst eine Zone auswählen', 'err'); return; }
+				    if (!selectedLootrun) { toast('Select a zone first', 'err'); return; }
 				    confirm(
-				      `Loot Pool für Lootrun <code>${selectedLootrun}</code> wirklich wipen?`,
-				      () => doWipe('/admin/loot-pool/lootrun', `Lootrun Pool gewiped: ${selectedLootrun}`, { lootrunType: selectedLootrun })
+				      `Really wipe the loot pool for lootrun <code>${selectedLootrun}</code>?`,
+				      () => doWipe('/admin/loot-pool/lootrun', `Lootrun pool wiped: ${selectedLootrun}`, { lootrunType: selectedLootrun })
 				    );
 				  }
 				
 				  function wipeAspect(name) {
 				    confirm(
-				      `Aspect <code>${name}</code> bei <strong>allen Usern</strong> löschen?`,
-				      () => doWipe('/admin/aspects', `Aspect gewiped: ${name}`, { aspectName: name })
+				      `Delete aspect <code>${name}</code> for <strong>all users</strong>?`,
+				      () => doWipe('/admin/aspects', `Aspect wiped: ${name}`, { aspectName: name })
 				    );
 				  }
 
@@ -1684,15 +1877,15 @@ public class WynnextrasServerApplication {
 				    const previewBtn = document.getElementById('stale-preview-btn');
 				    const deleteBtn = document.getElementById('stale-delete-btn');
 				    previewBtn.disabled = true;
-				    previewBtn.innerHTML = '<span class="spin"></span> Lade...';
+				    previewBtn.innerHTML = '<span class="spin"></span> Loading...';
 				    deleteBtn.disabled = true;
 				    stalePreview = null;
-				    toast('Preview läuft...', 'inf');
+				    toast('Preview in progress...', 'inf');
 
 				    try {
 				      const r = await api('GET', '/admin/aspects/stale-preview');
 				      if (!r.ok) {
-				        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+				        toast('✗ Error ' + r.status + ': ' + r.text, 'err');
 				        return;
 				      }
 
@@ -1700,27 +1893,27 @@ public class WynnextrasServerApplication {
 				      stalePreview = data;
 				      renderStaleAspectPreview(data);
 				      deleteBtn.disabled = data.staleAspectCount === 0;
-				      toast(`✓ Preview: ${data.staleAspectCount} alte Namen, ${data.totalStaleRows} Einträge`, 'ok');
+				      toast(`✓ Preview: ${data.staleAspectCount} old names, ${data.totalStaleRows} entries`, 'ok');
 				    } catch (e) {
 				      toast('✗ ' + e.message, 'err');
 				    } finally {
 				      previewBtn.disabled = false;
-				      previewBtn.textContent = 'Preview laden';
+				      previewBtn.textContent = 'Load preview';
 				    }
 				  }
 
 				  function deleteStaleAspects() {
 				    if (!stalePreview || stalePreview.staleAspectCount === 0) {
-				      toast('Erst Preview mit alten Aspects laden', 'err');
+				      toast('Load the stale-aspect preview first', 'err');
 				      return;
 				    }
 
 				    confirm(
-				      `${stalePreview.staleAspectCount} alte Aspect-Namen mit insgesamt <strong>${stalePreview.totalStaleRows}</strong> DB-Einträgen löschen?<br><br>Die aktuelle Wynncraft-Liste wird vor dem Löschen erneut geladen.`,
+				      `Delete ${stalePreview.staleAspectCount} old aspect names with a total of <strong>${stalePreview.totalStaleRows}</strong> database entries?<br><br>The current Wynncraft list will be loaded again before deletion.`,
 				      async () => {
 				        const deleteBtn = document.getElementById('stale-delete-btn');
 				        deleteBtn.disabled = true;
-				        toast('Stale-Wipe läuft...', 'inf');
+				        toast('Stale-aspect wipe in progress...', 'inf');
 
 				        try {
 				          const r = await api('DELETE', '/admin/aspects/stale', { confirm: 'true' });
@@ -1733,9 +1926,9 @@ public class WynnextrasServerApplication {
 				              staleAspects: []
 				            };
 				            renderStaleAspectPreview(stalePreview);
-				            toast(`✓ Stale Aspects gewiped: ${data.deleted} Einträge`, 'ok');
+				            toast(`✓ Stale aspects wiped: ${data.deleted} entries`, 'ok');
 				          } else {
-				            toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+				            toast('✗ Error ' + r.status + ': ' + r.text, 'err');
 				          }
 				        } catch (e) {
 				          toast('✗ ' + e.message, 'err');
@@ -1750,17 +1943,17 @@ public class WynnextrasServerApplication {
 				    el.classList.toggle('empty', rows.length === 0);
 
 				    if (rows.length === 0) {
-				      el.innerHTML = `Keine stale Aspects gefunden. Aktuelle Wynncraft-Namen: ${data.currentAspectCount || 0}.`;
+				      el.innerHTML = `No stale aspects found. Current Wynncraft names: ${data.currentAspectCount || 0}.`;
 				      return;
 				    }
 
 				    const visibleRows = rows.slice(0, 100);
 				    const overflow = rows.length > visibleRows.length
-				      ? `<div class="stale-row"><span>... ${rows.length - visibleRows.length} weitere</span><span class="stale-count"></span></div>`
+				      ? `<div class="stale-row"><span>... ${rows.length - visibleRows.length} more</span><span class="stale-count"></span></div>`
 				      : '';
 
 				    el.innerHTML = `
-				      <div class="stale-summary">${data.staleAspectCount} alte Namen, ${data.totalStaleRows} DB-Einträge. Aktuelle Wynncraft-Namen: ${data.currentAspectCount}.</div>
+				      <div class="stale-summary">${data.staleAspectCount} old names, ${data.totalStaleRows} database entries. Current Wynncraft names: ${data.currentAspectCount}.</div>
 				      <div class="stale-list">
 				        ${visibleRows.map(row => `
 				          <div class="stale-row">
@@ -1784,11 +1977,11 @@ public class WynnextrasServerApplication {
 				
 				  function wipeCustomAspect() {
 				    const name = document.getElementById('custom-aspect').value.trim();
-				    if (!name) { toast('Aspect-Name eingeben', 'err'); return; }
+				    if (!name) { toast('Enter an aspect name', 'err'); return; }
 				    confirm(
-				      `Aspect <code>${name}</code> bei <strong>allen Usern</strong> löschen?`,
+				      `Delete aspect <code>${name}</code> for <strong>all users</strong>?`,
 				      async () => {
-				        await doWipe('/admin/aspects', `Aspect gewiped: ${name}`, { aspectName: name });
+				        await doWipe('/admin/aspects', `Aspect wiped: ${name}`, { aspectName: name });
 				        document.getElementById('custom-aspect').value = '';
 				      }
 				    );
@@ -1796,18 +1989,18 @@ public class WynnextrasServerApplication {
 				
 				  function wipePlayerAspects() {
 				    let uuid = document.getElementById('player-uuid').value.trim().replace(/-/g, '').toLowerCase();
-				    if (!/^[0-9a-f]{32}$/.test(uuid)) { toast('Ungültige UUID (32 hex Zeichen erwartet)', 'err'); return; }
+				    if (!/^[0-9a-f]{32}$/.test(uuid)) { toast('Invalid UUID (expected 32 hexadecimal characters)', 'err'); return; }
 				    confirm(
-				      `Alle Aspects für UUID <code>${uuid}</code> löschen?`,
+				      `Delete all aspects for UUID <code>${uuid}</code>?`,
 				      async () => {
-				        toast('Wipe läuft...', 'inf');
+				        toast('Wipe in progress...', 'inf');
 				        try {
 				          const r = await api('DELETE', '/admin/aspects/player', { playerUuid: uuid });
 				          if (r.ok) {
-				            toast('✓ Player Aspects gewiped', 'ok');
+				            toast('✓ Player aspects wiped', 'ok');
 				            document.getElementById('player-uuid').value = '';
 				          } else {
-				            toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+				            toast('✗ Error ' + r.status + ': ' + r.text, 'err');
 				          }
 				        } catch(e) {
 				          toast('✗ ' + e.message, 'err');
@@ -1822,9 +2015,9 @@ public class WynnextrasServerApplication {
 				      const r = await api('POST', '/admin/reload-verified-users');
 				      if (r.ok) {
 				        const data = JSON.parse(r.text);
-				        toast(`✓ Verified users geladen: ${data.verifiedUserCount}`, 'ok');
+				        toast(`✓ Verified users loaded: ${data.verifiedUserCount}`, 'ok');
 				      } else {
-				        toast('✗ Fehler: ' + r.text, 'err');
+				        toast('✗ Error: ' + r.text, 'err');
 				      }
 					    } catch(e) {
 					      toast('✗ ' + e.message, 'err');
@@ -1834,8 +2027,8 @@ public class WynnextrasServerApplication {
 					  async function captureUsageSnapshot() {
 					    const btn = document.getElementById('usage-snapshot-btn');
 					    btn.disabled = true;
-					    btn.innerHTML = '<span class="spin"></span> Läuft...';
-					    toast('Wynncraft Usage Snapshot läuft...', 'inf');
+					    btn.innerHTML = '<span class="spin"></span> Running...';
+					    toast('Wynncraft usage snapshot in progress...', 'inf');
 
 					    try {
 					      const r = await api('POST', '/admin/wynncraft-usage/snapshot');
@@ -1843,13 +2036,13 @@ public class WynnextrasServerApplication {
 					        const data = JSON.parse(r.text);
 					        toast(`✓ Snapshot ${data.snapshotDate}: ${data.usagePercent.toFixed(2)}% (${data.wynnExtrasUsers}/${data.uniquePlayers} visible, ${data.totalOnlinePlayers} total online)`, 'ok');
 					      } else {
-					        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+					        toast('✗ Error ' + r.status + ': ' + r.text, 'err');
 					      }
 					    } catch(e) {
 					      toast('✗ ' + e.message, 'err');
 					    } finally {
 					      btn.disabled = false;
-					      btn.textContent = 'Snapshot auslösen';
+					      btn.textContent = 'Capture snapshot';
 					    }
 					  }
 					</script>

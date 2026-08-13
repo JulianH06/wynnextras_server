@@ -478,10 +478,10 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Wipe Raid Pool — einzelner Raid</div>
+      <div class="card-title">Wipe Raid Pool — single raid</div>
       <div class="card-desc">
-        Löscht den approved pool + alle submissions für diesen Raid in der aktuellen Woche.
-        Nützlich wenn ein neuer Pool früher als normal erscheint.
+        Deletes the approved pool and all submissions for this raid in the current week.
+        Useful when a new pool appears earlier than usual.
       </div>
       <div class="chip-group" id="raid-chips">
         <button class="chip" data-val="NOTG">NOTG</button>
@@ -491,17 +491,17 @@
       </div>
       <div class="card-actions">
         <button class="btn btn-warn" onclick="wipeRaid()">
-          <span>⚡</span> Ausgewählte wipen
+          <span>⚡</span> Wipe selected
         </button>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title">Wipe Raid Pool — alle Raids</div>
-      <div class="card-desc">Löscht alle approved pools + submissions aller Raids der aktuellen Woche.</div>
+      <div class="card-title">Wipe Raid Pool — all raids</div>
+      <div class="card-desc">Deletes all approved pools and submissions for every raid in the current week.</div>
       <div class="card-actions">
-        <button class="btn btn-danger" onclick="confirm('Wipe ALLE Raid Loot Pools?', () => doWipe('/admin/loot-pool/raid', 'Alle Raid Pools gewiped'))">
-          ✕ Alle Raids wipen
+        <button class="btn btn-danger" onclick="confirm('Wipe ALL Raid Loot Pools?', () => doWipe('/admin/loot-pool/raid', 'All raid pools wiped'))">
+          ✕ Wipe all raids
         </button>
       </div>
     </div>
@@ -515,8 +515,8 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Wipe Lootrun Pool — einzelne Zone</div>
-      <div class="card-desc">Löscht den approved pool + alle submissions für diese Lootrun-Zone.</div>
+      <div class="card-title">Wipe Lootrun Pool — single zone</div>
+      <div class="card-desc">Deletes the approved pool and all submissions for this lootrun zone.</div>
       <div class="chip-group" id="lootrun-chips">
         <button class="chip chip-run" data-val="SE">SE</button>
         <button class="chip chip-run" data-val="SI">SI</button>
@@ -526,17 +526,17 @@
       </div>
       <div class="card-actions">
         <button class="btn btn-accent" onclick="wipeLootrun()">
-          <span>⚡</span> Ausgewählte wipen
+          <span>⚡</span> Wipe selected
         </button>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title">Wipe Lootrun Pool — alle Zonen</div>
-      <div class="card-desc">Löscht alle Lootrun approved pools + submissions.</div>
+      <div class="card-title">Wipe Lootrun Pool — all zones</div>
+      <div class="card-desc">Deletes all approved lootrun pools and submissions.</div>
       <div class="card-actions">
-        <button class="btn btn-danger" onclick="confirm('Wipe ALLE Lootrun Loot Pools?', () => doWipe('/admin/loot-pool/lootrun', 'Alle Lootrun Pools gewiped'))">
-          ✕ Alle Lootruns wipen
+        <button class="btn btn-danger" onclick="confirm('Wipe ALL Lootrun Loot Pools?', () => doWipe('/admin/loot-pool/lootrun', 'All lootrun pools wiped'))">
+          ✕ Wipe all lootrun pools
         </button>
       </div>
     </div>
@@ -550,23 +550,23 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Stale Aspects aus Wynn API wipen</div>
+      <div class="card-title">Wipe stale aspects from the Wynn API</div>
       <div class="card-desc">
-        Holt die aktuellen Aspect-Namen aus Wynncraft und zeigt alle DB-Namen, die dort nicht mehr existieren. Gelöscht wird erst nach Preview und Bestätigung.
+        Fetches the current aspect names from Wynncraft and shows database names that no longer exist. Nothing is deleted until after preview and confirmation.
       </div>
       <div class="card-actions">
-        <button class="btn btn-accent" id="stale-preview-btn" onclick="previewStaleAspects()">Preview laden</button>
-        <button class="btn btn-danger" id="stale-delete-btn" onclick="deleteStaleAspects()" disabled>Stale Aspects löschen</button>
+        <button class="btn btn-accent" id="stale-preview-btn" onclick="previewStaleAspects()">Load preview</button>
+        <button class="btn btn-danger" id="stale-delete-btn" onclick="deleteStaleAspects()" disabled>Delete stale aspects</button>
       </div>
       <div id="stale-aspect-preview" class="stale-preview">
-        Noch keine Preview geladen.
+        No preview loaded yet.
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title">Umbenannte Aspects wipen (bekannte)</div>
+      <div class="card-title">Wipe known renamed aspects</div>
       <div class="card-desc">
-        Diese Aspects wurden in Wynn umbenannt — die alten Namen werden bei allen Usern gelöscht.
+        These aspects were renamed in Wynn. The old names will be deleted for all users.
       </div>
       <div class="card-actions" id="known-aspect-btns">
         <button class="btn btn-warn" onclick="wipeAspect('Aspect of Upkeep Charges')">
@@ -582,24 +582,24 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Custom Aspect-Name wipen</div>
+      <div class="card-title">Wipe a custom aspect name</div>
       <div class="card-desc">
-        Beliebigen Aspect-Namen bei allen Usern löschen. Exakt so eingeben wie er in der DB steht.
+        Delete any aspect name for all users. Enter it exactly as stored in the database.
       </div>
       <div class="input-row">
-        <input type="text" id="custom-aspect" placeholder="z.B. Aspect of Something Old" />
-        <button class="btn btn-danger" onclick="wipeCustomAspect()">✕ Wipen</button>
+        <input type="text" id="custom-aspect" placeholder="e.g. Aspect of Something Old" />
+        <button class="btn btn-danger" onclick="wipeCustomAspect()">✕ Wipe</button>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title">Wipe alle Aspects eines Spielers</div>
+      <div class="card-title">Wipe all aspects for a player</div>
       <div class="card-desc">
-        UUID des Spielers (ohne Bindestriche, 32 Zeichen hex).
+        Player UUID without hyphens, using 32 hexadecimal characters.
       </div>
       <div class="input-row">
-        <input type="text" id="player-uuid" placeholder="z.B. 069a79f444e94726a5befca90e38aaf5" maxlength="36" />
-        <button class="btn btn-danger" onclick="wipePlayerAspects()">✕ Wipen</button>
+        <input type="text" id="player-uuid" placeholder="e.g. 069a79f444e94726a5befca90e38aaf5" maxlength="36" />
+        <button class="btn btn-danger" onclick="wipePlayerAspects()">✕ Wipe</button>
       </div>
     </div>
   </div>
@@ -607,24 +607,24 @@
   <!-- MISC -->
   <div class="section">
     <div class="section-header">
-      <span class="section-label">Sonstiges</span>
+      <span class="section-label">Miscellaneous</span>
       <div class="section-line"></div>
     </div>
     <div class="card">
-      <div class="card-title">Verified Users neu laden</div>
-      <div class="card-desc">Lädt die Verified-User-Liste neu aus der Datei (VERIFIED_USERS.md).</div>
+      <div class="card-title">Reload verified users</div>
+      <div class="card-desc">Reloads the verified-user list from the file (VERIFIED_USERS.md).</div>
       <div class="card-actions">
         <button class="btn btn-accent" onclick="reloadVerified()">↻ Reload</button>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title">Wynncraft Usage Snapshot auslösen</div>
+      <div class="card-title">Capture Wynncraft usage snapshot</div>
       <div class="card-desc">
-        Holt sofort die aktuelle Wynncraft-Online-Liste und berechnet den Usage-Snapshot für den aktuellen UTC-Tag neu.
+        Immediately fetches the current Wynncraft online list and recalculates the usage snapshot for the current UTC day.
       </div>
       <div class="card-actions">
-        <button class="btn btn-accent" id="usage-snapshot-btn" onclick="captureUsageSnapshot()">Snapshot auslösen</button>
+        <button class="btn btn-accent" id="usage-snapshot-btn" onclick="captureUsageSnapshot()">Capture snapshot</button>
       </div>
     </div>
   </div>
@@ -633,11 +633,11 @@
 <!-- Confirm Modal -->
 <div id="modal-overlay">
   <div id="modal">
-    <h2>⚠ BESTÄTIGEN</h2>
+    <h2>⚠ CONFIRM</h2>
     <p id="modal-text"></p>
     <div class="modal-btns">
-      <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-danger" id="modal-confirm-btn" onclick="runConfirmed()">Bestätigen</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="modal-confirm-btn" onclick="runConfirmed()">Confirm</button>
     </div>
   </div>
 </div>
@@ -725,40 +725,40 @@
   }
 
   async function doWipe(path, successMsg, params = {}) {
-    toast('Wipe läuft...', 'inf');
+    toast('Wipe in progress...', 'inf');
     try {
       const r = await api('DELETE', path, params);
       if (r.ok) {
         toast('✓ ' + successMsg, 'ok');
       } else {
-        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+        toast('✗ Error ' + r.status + ': ' + r.text, 'err');
       }
     } catch (e) {
-      toast('✗ Netzwerkfehler: ' + e.message, 'err');
+      toast('✗ Network error: ' + e.message, 'err');
     }
   }
 
   // --- Actions ---
   function wipeRaid() {
-    if (!selectedRaid) { toast('Bitte erst einen Raid auswählen', 'err'); return; }
+    if (!selectedRaid) { toast('Select a raid first', 'err'); return; }
     confirm(
-      `Loot Pool für <code>${selectedRaid}</code> wirklich wipen?<br><br>Approved pool + alle Submissions werden gelöscht.`,
-      () => doWipe('/admin/loot-pool/raid', `Raid Pool gewiped: ${selectedRaid}`, { raidType: selectedRaid })
+      `Really wipe the loot pool for <code>${selectedRaid}</code>?<br><br>The approved pool and all submissions will be deleted.`,
+      () => doWipe('/admin/loot-pool/raid', `Raid pool wiped: ${selectedRaid}`, { raidType: selectedRaid })
     );
   }
 
   function wipeLootrun() {
-    if (!selectedLootrun) { toast('Bitte erst eine Zone auswählen', 'err'); return; }
+    if (!selectedLootrun) { toast('Select a zone first', 'err'); return; }
     confirm(
-      `Loot Pool für Lootrun <code>${selectedLootrun}</code> wirklich wipen?`,
-      () => doWipe('/admin/loot-pool/lootrun', `Lootrun Pool gewiped: ${selectedLootrun}`, { lootrunType: selectedLootrun })
+      `Really wipe the loot pool for lootrun <code>${selectedLootrun}</code>?`,
+      () => doWipe('/admin/loot-pool/lootrun', `Lootrun pool wiped: ${selectedLootrun}`, { lootrunType: selectedLootrun })
     );
   }
 
   function wipeAspect(name) {
     confirm(
-      `Aspect <code>${name}</code> bei <strong>allen Usern</strong> löschen?`,
-      () => doWipe('/admin/aspects', `Aspect gewiped: ${name}`, { aspectName: name })
+      `Delete aspect <code>${name}</code> for <strong>all users</strong>?`,
+      () => doWipe('/admin/aspects', `Aspect wiped: ${name}`, { aspectName: name })
     );
   }
 
@@ -766,15 +766,15 @@
     const previewBtn = document.getElementById('stale-preview-btn');
     const deleteBtn = document.getElementById('stale-delete-btn');
     previewBtn.disabled = true;
-    previewBtn.innerHTML = '<span class="spin"></span> Lade...';
+    previewBtn.innerHTML = '<span class="spin"></span> Loading...';
     deleteBtn.disabled = true;
     stalePreview = null;
-    toast('Preview läuft...', 'inf');
+    toast('Preview in progress...', 'inf');
 
     try {
       const r = await api('GET', '/admin/aspects/stale-preview');
       if (!r.ok) {
-        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+        toast('✗ Error ' + r.status + ': ' + r.text, 'err');
         return;
       }
 
@@ -782,27 +782,27 @@
       stalePreview = data;
       renderStaleAspectPreview(data);
       deleteBtn.disabled = data.staleAspectCount === 0;
-      toast(`✓ Preview: ${data.staleAspectCount} alte Namen, ${data.totalStaleRows} Einträge`, 'ok');
+      toast(`✓ Preview: ${data.staleAspectCount} old names, ${data.totalStaleRows} entries`, 'ok');
     } catch (e) {
       toast('✗ ' + e.message, 'err');
     } finally {
       previewBtn.disabled = false;
-      previewBtn.textContent = 'Preview laden';
+      previewBtn.textContent = 'Load preview';
     }
   }
 
   function deleteStaleAspects() {
     if (!stalePreview || stalePreview.staleAspectCount === 0) {
-      toast('Erst Preview mit alten Aspects laden', 'err');
+      toast('Load the stale-aspect preview first', 'err');
       return;
     }
 
     confirm(
-      `${stalePreview.staleAspectCount} alte Aspect-Namen mit insgesamt <strong>${stalePreview.totalStaleRows}</strong> DB-Einträgen löschen?<br><br>Die aktuelle Wynncraft-Liste wird vor dem Löschen erneut geladen.`,
+      `Delete ${stalePreview.staleAspectCount} old aspect names with a total of <strong>${stalePreview.totalStaleRows}</strong> database entries?<br><br>The current Wynncraft list will be loaded again before deletion.`,
       async () => {
         const deleteBtn = document.getElementById('stale-delete-btn');
         deleteBtn.disabled = true;
-        toast('Stale-Wipe läuft...', 'inf');
+        toast('Stale-aspect wipe in progress...', 'inf');
 
         try {
           const r = await api('DELETE', '/admin/aspects/stale', { confirm: 'true' });
@@ -815,9 +815,9 @@
               staleAspects: []
             };
             renderStaleAspectPreview(stalePreview);
-            toast(`✓ Stale Aspects gewiped: ${data.deleted} Einträge`, 'ok');
+            toast(`✓ Stale aspects wiped: ${data.deleted} entries`, 'ok');
           } else {
-            toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+            toast('✗ Error ' + r.status + ': ' + r.text, 'err');
           }
         } catch (e) {
           toast('✗ ' + e.message, 'err');
@@ -832,17 +832,17 @@
     el.classList.toggle('empty', rows.length === 0);
 
     if (rows.length === 0) {
-      el.innerHTML = `Keine stale Aspects gefunden. Aktuelle Wynncraft-Namen: ${data.currentAspectCount || 0}.`;
+      el.innerHTML = `No stale aspects found. Current Wynncraft names: ${data.currentAspectCount || 0}.`;
       return;
     }
 
     const visibleRows = rows.slice(0, 100);
     const overflow = rows.length > visibleRows.length
-      ? `<div class="stale-row"><span>... ${rows.length - visibleRows.length} weitere</span><span class="stale-count"></span></div>`
+      ? `<div class="stale-row"><span>... ${rows.length - visibleRows.length} more</span><span class="stale-count"></span></div>`
       : '';
 
     el.innerHTML = `
-      <div class="stale-summary">${data.staleAspectCount} alte Namen, ${data.totalStaleRows} DB-Einträge. Aktuelle Wynncraft-Namen: ${data.currentAspectCount}.</div>
+      <div class="stale-summary">${data.staleAspectCount} old names, ${data.totalStaleRows} database entries. Current Wynncraft names: ${data.currentAspectCount}.</div>
       <div class="stale-list">
         ${visibleRows.map(row => `
           <div class="stale-row">
@@ -866,11 +866,11 @@
 
   function wipeCustomAspect() {
     const name = document.getElementById('custom-aspect').value.trim();
-    if (!name) { toast('Aspect-Name eingeben', 'err'); return; }
+    if (!name) { toast('Enter an aspect name', 'err'); return; }
     confirm(
-      `Aspect <code>${name}</code> bei <strong>allen Usern</strong> löschen?`,
+      `Delete aspect <code>${name}</code> for <strong>all users</strong>?`,
       async () => {
-        await doWipe('/admin/aspects', `Aspect gewiped: ${name}`, { aspectName: name });
+        await doWipe('/admin/aspects', `Aspect wiped: ${name}`, { aspectName: name });
         document.getElementById('custom-aspect').value = '';
       }
     );
@@ -878,18 +878,18 @@
 
   function wipePlayerAspects() {
     let uuid = document.getElementById('player-uuid').value.trim().replace(/-/g, '').toLowerCase();
-    if (!/^[0-9a-f]{32}$/.test(uuid)) { toast('Ungültige UUID (32 hex Zeichen erwartet)', 'err'); return; }
+    if (!/^[0-9a-f]{32}$/.test(uuid)) { toast('Invalid UUID (expected 32 hexadecimal characters)', 'err'); return; }
     confirm(
-      `Alle Aspects für UUID <code>${uuid}</code> löschen?`,
+      `Delete all aspects for UUID <code>${uuid}</code>?`,
       async () => {
-        toast('Wipe läuft...', 'inf');
+        toast('Wipe in progress...', 'inf');
         try {
           const r = await api('DELETE', '/admin/aspects/player', { playerUuid: uuid });
           if (r.ok) {
-            toast('✓ Player Aspects gewiped', 'ok');
+            toast('✓ Player aspects wiped', 'ok');
             document.getElementById('player-uuid').value = '';
           } else {
-            toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+            toast('✗ Error ' + r.status + ': ' + r.text, 'err');
           }
         } catch(e) {
           toast('✗ ' + e.message, 'err');
@@ -904,9 +904,9 @@
       const r = await api('POST', '/admin/reload-verified-users');
       if (r.ok) {
         const data = JSON.parse(r.text);
-        toast(`✓ Verified users geladen: ${data.verifiedUserCount}`, 'ok');
+        toast(`✓ Verified users loaded: ${data.verifiedUserCount}`, 'ok');
       } else {
-        toast('✗ Fehler: ' + r.text, 'err');
+        toast('✗ Error: ' + r.text, 'err');
       }
     } catch(e) {
       toast('✗ ' + e.message, 'err');
@@ -916,8 +916,8 @@
   async function captureUsageSnapshot() {
     const btn = document.getElementById('usage-snapshot-btn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span> Läuft...';
-    toast('Wynncraft Usage Snapshot läuft...', 'inf');
+    btn.innerHTML = '<span class="spin"></span> Running...';
+    toast('Wynncraft usage snapshot in progress...', 'inf');
 
     try {
       const r = await api('POST', '/admin/wynncraft-usage/snapshot');
@@ -925,13 +925,13 @@
         const data = JSON.parse(r.text);
         toast(`✓ Snapshot ${data.snapshotDate}: ${data.usagePercent.toFixed(2)}% (${data.wynnExtrasUsers}/${data.uniquePlayers})`, 'ok');
       } else {
-        toast('✗ Fehler ' + r.status + ': ' + r.text, 'err');
+        toast('✗ Error ' + r.status + ': ' + r.text, 'err');
       }
     } catch(e) {
       toast('✗ ' + e.message, 'err');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Snapshot auslösen';
+      btn.textContent = 'Capture snapshot';
     }
   }
 </script>

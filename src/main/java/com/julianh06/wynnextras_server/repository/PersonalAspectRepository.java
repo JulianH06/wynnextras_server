@@ -13,8 +13,13 @@ import java.util.Optional;
 @Repository
 public interface PersonalAspectRepository extends JpaRepository<PersonalAspect, Long> {
     List<PersonalAspect> findByPlayerUuid(String playerUuid);
+    List<PersonalAspect> findByPlayerUuidAndPublishedTrue(String playerUuid);
     Optional<PersonalAspect> findByPlayerUuidAndAspectName(String playerUuid, String aspectName);
     void deleteByPlayerUuid(String playerUuid);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE PersonalAspect p SET p.published = :published WHERE p.playerUuid = :playerUuid")
+    int setPublishedByPlayerUuid(@Param("playerUuid") String playerUuid, @Param("published") boolean published);
 
     @Modifying
     @Query("DELETE FROM PersonalAspect p WHERE p.aspectName = :name")
@@ -45,9 +50,10 @@ public interface PersonalAspectRepository extends JpaRepository<PersonalAspect, 
     @Query("""
         SELECT p.playerUuid, p.playerName, COUNT(*) as maxCount
         FROM PersonalAspect p
-        WHERE (p.rarity = 'Mythic' AND p.amount = 15)
-           OR (p.rarity = 'Fabled' AND p.amount = 75)
-           OR (p.rarity = 'Legendary' AND p.amount = 150)
+        WHERE p.published = true
+          AND ((p.rarity = 'Mythic' AND p.amount = 15)
+            OR (p.rarity = 'Fabled' AND p.amount = 75)
+            OR (p.rarity = 'Legendary' AND p.amount = 150))
         GROUP BY p.playerUuid, p.playerName
         ORDER BY maxCount DESC
         LIMIT :limit
@@ -62,6 +68,7 @@ public interface PersonalAspectRepository extends JpaRepository<PersonalAspect, 
     @Query("""
         SELECT p.playerUuid, p.playerName, p.modVersion, MAX(p.updatedAt), COUNT(*)
         FROM PersonalAspect p
+        WHERE p.published = true
         GROUP BY p.playerUuid, p.playerName, p.modVersion
         ORDER BY MAX(p.updatedAt) DESC
         """)

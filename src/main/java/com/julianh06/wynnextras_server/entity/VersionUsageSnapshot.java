@@ -35,6 +35,17 @@ public class VersionUsageSnapshot {
     @Column(nullable = false)
     private long active14dCount;
 
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousUserCount = 0L;
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive1dCount = 0L;
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive3dCount = 0L;
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive7dCount = 0L;
+    @Column(columnDefinition = "bigint default 0")
+    private Long anonymousActive14dCount = 0L;
+
     public VersionUsageSnapshot() {}
 
     public VersionUsageSnapshot(LocalDate snapshotDate, Instant capturedAt, String modVersion) {
@@ -69,4 +80,23 @@ public class VersionUsageSnapshot {
 
     public long getActive14dCount() { return active14dCount; }
     public void setActive14dCount(long active14dCount) { this.active14dCount = active14dCount; }
+
+    public long getAnonymousUserCount() { return value(anonymousUserCount); }
+    public void setAnonymousUserCount(long value) { this.anonymousUserCount = value; }
+    public long getAnonymousActive1dCount() { return value(anonymousActive1dCount); }
+    public void setAnonymousActive1dCount(long value) { this.anonymousActive1dCount = value; }
+    public long getAnonymousActive3dCount() { return value(anonymousActive3dCount); }
+    public void setAnonymousActive3dCount(long value) { this.anonymousActive3dCount = value; }
+    public long getAnonymousActive7dCount() { return value(anonymousActive7dCount); }
+    public void setAnonymousActive7dCount(long value) { this.anonymousActive7dCount = value; }
+    public long getAnonymousActive14dCount() { return value(anonymousActive14dCount); }
+    public void setAnonymousActive14dCount(long value) { this.anonymousActive14dCount = value; }
+
+    public long getCombinedUserCount() { return userCount + getAnonymousUserCount(); }
+    public long getCombinedActive1dCount() { return getActive1dCount() + getAnonymousActive1dCount(); }
+    public long getCombinedActive3dCount() { return getActive3dCount() + getAnonymousActive3dCount(); }
+    public long getCombinedActive7dCount() { return active7dCount + getAnonymousActive7dCount(); }
+    public long getCombinedActive14dCount() { return active14dCount + getAnonymousActive14dCount(); }
+
+    private static long value(Long value) { return value == null ? 0L : value; }
 }

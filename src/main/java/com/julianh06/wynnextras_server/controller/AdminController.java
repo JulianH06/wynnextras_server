@@ -154,13 +154,13 @@ public class AdminController {
     @Transactional
     public ResponseEntity<?> wipeAspectByName(@RequestParam String aspectName) {
         if (aspectName == null || aspectName.isBlank()) {
-            return ResponseEntity.badRequest().body("aspectName darf nicht leer sein");
+            return ResponseEntity.badRequest().body("aspectName must not be blank");
         }
         int deleted = personalAspectRepo.deleteByAspectName(aspectName);
         logger.info("Admin wiped aspect '{}': {} entries deleted", aspectName, deleted);
         return ResponseEntity.ok(Map.of(
                 "status", "success",
-                "message", "Aspect gewiped: " + aspectName,
+                "message", "Aspect wiped: " + aspectName,
                 "deleted", deleted
         ));
     }
@@ -194,7 +194,7 @@ public class AdminController {
             logger.info("Admin wiped stale aspects: {} entries deleted", deleted);
             return ResponseEntity.ok(Map.of(
                     "status", "success",
-                    "message", "Stale Aspects gewiped",
+                    "message", "Stale aspects wiped",
                     "currentAspectCount", preview.get("currentAspectCount"),
                     "staleAspectCount", preview.get("staleAspectCount"),
                     "expectedDeleted", preview.get("totalStaleRows"),
@@ -216,13 +216,13 @@ public class AdminController {
     public ResponseEntity<?> wipePlayerAspects(@RequestParam String playerUuid) {
         String normalized = playerUuid.replace("-", "").toLowerCase();
         if (!normalized.matches("[0-9a-f]{32}")) {
-            return ResponseEntity.badRequest().body("Ungültige UUID");
+            return ResponseEntity.badRequest().body("Invalid UUID");
         }
         personalAspectRepo.deleteByPlayerUuid(normalized);
         logger.info("Admin wiped all aspects for player UUID: {}", normalized);
         return ResponseEntity.ok(Map.of(
                 "status", "success",
-                "message", "Alle Aspects gewiped für UUID: " + normalized
+                "message", "All aspects deleted for UUID: " + normalized
         ));
     }
 
