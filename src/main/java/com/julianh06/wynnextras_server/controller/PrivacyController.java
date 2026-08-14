@@ -30,7 +30,11 @@ public class PrivacyController {
                     <h2>Public profile data</h2>
                     <p>Users with version 0.19.0 and above can also disable badges and personal aspects uploads. Badge selections and personal aspects are returned publicly only when published.</p>
                     <p>Hiding them does not delete them, and they can be published again later. Send a DM to one of the Admins in the WynnExtras Discord server if you want to delete old aspect data.</p>
-                    <p>You can go to https://wynnextras.com/discord to join our Discord server.</p>
+                    <h2>Legal</h2>
+                    <p>Under the GDPR, you may request confirmation as to whether we process personal data concerning you and, if so, access to and a copy of that data. Where the legal requirements are met, you may also request correction or deletion of your data, restriction of its processing, object to its processing, or exercise your right to data portability.</p>
+                    <p>To exercise any of these rights, send a DM to one of the Admins in the WynnExtras Discord server. Please include your Minecraft username and UUID so that we can locate your data. We may request additional information where necessary to verify your identity before disclosing or deleting personal data.</p>
+                    <p>If you have any concerns about how your data is handled, please reach out to us on Discord and we will do our best to help. If you prefer, you can also contact a data protection supervisory authority.</p>
+                    <p>You can join our Discord server at <a href="https://wynnextras.com/discord">wynnextras.com/discord</a>.</p>
                 </body>
                 </html>
                 """;

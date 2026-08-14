@@ -23,7 +23,7 @@ public class AnonymousDailyActivity {
     @Column(name = "activity_period", nullable = false)
     private long period;
 
-    @Column(name = "anonymous_id", nullable = false, length = 32)
+    @Column(name = "anonymous_id", nullable = false, length = 64)
     private String anonymousId;
 
     @Column(name = "mod_version", nullable = false, length = 32)

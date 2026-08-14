@@ -13,7 +13,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.Locale;
 
 @Service
 public class AnonymousTelemetryService {
@@ -73,9 +72,9 @@ public class AnonymousTelemetryService {
         if (anonymousId == null) {
             throw new IllegalArgumentException("anonymousId is required");
         }
-        String normalized = anonymousId.trim().toLowerCase(Locale.ROOT).replace("-", "");
-        if (!normalized.matches("[0-9a-f]{32}")) {
-            throw new IllegalArgumentException("anonymousId must be a UUID");
+        String normalized = anonymousId;
+        if (!normalized.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("anonymousId must be 64 lowercase hexadecimal characters");
         }
         return normalized;
     }

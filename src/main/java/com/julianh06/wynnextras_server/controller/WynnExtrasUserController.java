@@ -1,10 +1,12 @@
 package com.julianh06.wynnextras_server.controller;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.julianh06.wynnextras_server.entity.BadgeProfile;
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
 import com.julianh06.wynnextras_server.entity.DailyUserActivity;
 import com.julianh06.wynnextras_server.repository.AnonymousUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.AnonymousDailyActivityRepository;
+import com.julianh06.wynnextras_server.repository.BadgeProfileRepository;
 import com.julianh06.wynnextras_server.repository.DailyUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.WynnExtrasUserRepository;
 import com.julianh06.wynnextras_server.service.AnonymousTelemetryService;
@@ -44,6 +46,9 @@ public class WynnExtrasUserController {
 
     @Autowired
     private DailyUserActivityRepository dailyUserActivityRepository;
+
+    @Autowired
+    private BadgeProfileRepository badgeProfileRepository;
 
     @Autowired
     private AnonymousUserActivityRepository anonymousUserActivityRepository;
@@ -117,6 +122,8 @@ public class WynnExtrasUserController {
                 logger.info("Registered new WynnExtras user: {} ({})", verifiedUsername, verifiedUuid);
             }
 
+            upsertBadgeProfile(
+                    verifiedUuid, verifiedUsername, badgeIconId, badgeColorId, null, heartbeatAt, true);
             recordDailyActivity(verifiedUuid, verifiedUsername, modVersion, heartbeatAt);
 
             return ResponseEntity.ok(Map.of(
@@ -174,18 +181,31 @@ public class WynnExtrasUserController {
                     "status", "error", "message", "published is required"));
         }
 
-        Optional<WynnExtrasUser> existing = userRepository.findByUuid(session.uuid);
-        if (existing.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(java.util.Map.of(
-                    "status", "error", "message", "User must send a heartbeat before setting a badge"));
-        }
-
-        WynnExtrasUser user = existing.get();
-        user.setBadgeIconId(BadgeCatalog.normalizeBadgeIconId(request.getBadgeIconId()));
-        user.setBadgeColorId(BadgeCatalog.normalizeBadgeColorId(request.getBadgeColorId()));
-        user.setBadgePublished(request.getPublished());
-        userRepository.save(user);
+        upsertBadgeProfile(
+                session.uuid,
+                session.username,
+                BadgeCatalog.normalizeBadgeIconId(request.getBadgeIconId()),
+                BadgeCatalog.normalizeBadgeColorId(request.getBadgeColorId()),
+                request.getPublished(),
+                Instant.now(),
+                false);
         return ResponseEntity.ok(java.util.Map.of("status", "success", "message", "Badge updated"));
+    }
+
+    private void upsertBadgeProfile(String uuid, String username, String iconId, String colorId,
+                                    Boolean published, Instant badgeLastSeen, boolean updateUsername) {
+        BadgeProfile profile = badgeProfileRepository.findById(uuid)
+                .orElseGet(() -> new BadgeProfile(uuid, username, badgeLastSeen));
+        if (updateUsername) {
+            profile.setUsername(username);
+        }
+        profile.setBadgeIconId(iconId);
+        profile.setBadgeColorId(colorId);
+        if (published != null) {
+            profile.setPublished(published);
+        }
+        profile.setBadgeLastSeen(badgeLastSeen);
+        badgeProfileRepository.save(profile);
     }
 
     private void recordDailyActivity(String uuid, String username, String modVersion, Instant heartbeatAt) {
@@ -212,9 +232,9 @@ public class WynnExtrasUserController {
     public ResponseEntity<?> getActiveUsers() {
         try {
             Instant cutoff = Instant.now().minus(ACTIVE_THRESHOLD);
-            List<WynnExtrasUser> activeUsers = userRepository.findPublishedActiveUsersSince(cutoff);
+            List<BadgeProfile> activeUsers = badgeProfileRepository.findPublishedActiveSince(cutoff);
             List<String> activeUuids = activeUsers.stream()
-                .map(WynnExtrasUser::getUuid)
+                .map(BadgeProfile::getUuid)
                 .toList();
             List<BadgeInfo> badges = activeUsers.stream()
                 .map(this::toBadgeInfo)
@@ -306,7 +326,7 @@ public class WynnExtrasUserController {
     public ResponseEntity<?> getLegacyActiveUserDetails() {
         try {
             Instant cutoff = Instant.now().minus(ACTIVE_THRESHOLD);
-            List<LegacyActiveUserInfo> users = userRepository.findPublishedActiveUsersSince(cutoff).stream()
+            List<LegacyActiveUserInfo> users = badgeProfileRepository.findPublishedActiveSince(cutoff).stream()
                     .map(user -> new LegacyActiveUserInfo(user.getUuid(), user.getUsername()))
                     .toList();
 
@@ -364,7 +384,7 @@ public class WynnExtrasUserController {
     private static java.util.Map<LocalDate, long[]> dailyRows(List<Object[]> rows) {
         java.util.Map<LocalDate, long[]> result = new java.util.HashMap<>();
         for (Object[] row : rows) {
-            result.put((LocalDate) row[0], new long[]{
+            result.put(toLocalDate(row[0]), new long[]{
                     ((Number) row[1]).longValue(), ((Number) row[2]).longValue()});
         }
         return result;
@@ -375,11 +395,28 @@ public class WynnExtrasUserController {
         java.util.Map<LocalDate, long[]> result = new java.util.HashMap<>();
         for (int index = 0; index < metrics.length; index++) {
             for (Object[] row : metrics[index]) {
-                result.computeIfAbsent((LocalDate) row[0], ignored -> new long[3])[index] =
+                result.computeIfAbsent(toLocalDate(row[0]), ignored -> new long[3])[index] =
                         ((Number) row[1]).longValue();
             }
         }
         return result;
+    }
+
+    private static LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate date) {
+            return date;
+        }
+        if (value instanceof java.sql.Date date) {
+            return date.toLocalDate();
+        }
+        if (value instanceof java.util.Date date) {
+            return LocalDate.ofInstant(date.toInstant(), ZoneOffset.UTC);
+        }
+        if (value instanceof CharSequence text) {
+            return LocalDate.parse(text);
+        }
+        throw new IllegalArgumentException("Unsupported SQL date value: "
+                + (value == null ? "null" : value.getClass().getName()));
     }
 
     private static java.util.Map<String, Long> retentionValues(long[] values) {
@@ -469,7 +506,7 @@ public class WynnExtrasUserController {
         public String getUsername() { return username; }
     }
 
-    private BadgeInfo toBadgeInfo(WynnExtrasUser user) {
+    private BadgeInfo toBadgeInfo(BadgeProfile user) {
         return new BadgeInfo(
                 user.getUuid(),
                 user.getUsername(),

@@ -1,7 +1,9 @@
 package com.julianh06.wynnextras_server.controller;
 
 import com.julianh06.wynnextras_server.dto.PersonalAspectDto;
+import com.julianh06.wynnextras_server.entity.AspectPublicationPreference;
 import com.julianh06.wynnextras_server.entity.PersonalAspect;
+import com.julianh06.wynnextras_server.repository.AspectPublicationPreferenceRepository;
 import com.julianh06.wynnextras_server.repository.PersonalAspectRepository;
 import com.julianh06.wynnextras_server.service.AuthService;
 import org.slf4j.Logger;
@@ -28,6 +30,9 @@ public class PersonalAspectController {
 
     @Autowired
     private PersonalAspectRepository personalAspectRepo;
+
+    @Autowired
+    private AspectPublicationPreferenceRepository publicationPreferenceRepo;
 
     @Autowired
     private AuthService mojangAuth;
@@ -73,13 +78,17 @@ public class PersonalAspectController {
 
         try {
             List<PersonalAspect> storedAspects = personalAspectRepo.findByPlayerUuid(verifiedUuid);
-            // Older clients do not send published. Preserve the player's existing choice;
-            // only brand-new profiles retain the historical public default.
-            boolean published = request.getPublished() != null
-                    ? request.getPublished()
-                    : storedAspects.isEmpty() || storedAspects.get(0).isPublished();
+            // The account preference also covers players who chose visibility before
+            // uploading their first aspect. Older accounts fall back to stored rows.
+            boolean published;
             if (request.getPublished() != null) {
+                published = request.getPublished();
+                savePublicationPreference(verifiedUuid, published);
                 personalAspectRepo.setPublishedByPlayerUuid(verifiedUuid, published);
+            } else {
+                published = publicationPreferenceRepo.findById(verifiedUuid)
+                        .map(AspectPublicationPreference::isPublished)
+                        .orElseGet(() -> storedAspects.isEmpty() || storedAspects.get(0).isPublished());
             }
             // Save or update each aspect
             for (PersonalAspectDto.AspectData aspect : request.getAspects()) {
@@ -142,12 +151,17 @@ public class PersonalAspectController {
             return ResponseEntity.badRequest().body(createResponse("error", "published is required"));
         }
 
-        int changed = personalAspectRepo.setPublishedByPlayerUuid(session.uuid, request.getPublished());
-        if (changed == 0) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(createResponse("error", "No aspects found for player"));
-        }
+        savePublicationPreference(session.uuid, request.getPublished());
+        personalAspectRepo.setPublishedByPlayerUuid(session.uuid, request.getPublished());
         return ResponseEntity.ok(createResponse("success", "Aspect publication updated"));
+    }
+
+    private void savePublicationPreference(String playerUuid, boolean published) {
+        AspectPublicationPreference preference = publicationPreferenceRepo.findById(playerUuid)
+                .orElseGet(() -> new AspectPublicationPreference(playerUuid, published, Instant.now()));
+        preference.setPublished(published);
+        preference.setUpdatedAt(Instant.now());
+        publicationPreferenceRepo.save(preference);
     }
 
     /**

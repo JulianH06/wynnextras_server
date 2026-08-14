@@ -8,6 +8,7 @@ import com.julianh06.wynnextras_server.entity.WynncraftUsageSnapshot;
 import com.julianh06.wynnextras_server.repository.ActiveUserSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.AnonymousDailyActivityRepository;
 import com.julianh06.wynnextras_server.repository.AnonymousUserActivityRepository;
+import com.julianh06.wynnextras_server.repository.BadgeProfileRepository;
 import com.julianh06.wynnextras_server.repository.DailyUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.GuildUserSnapshotRepository;
 import com.julianh06.wynnextras_server.repository.VersionUsageSnapshotRepository;
@@ -49,6 +50,9 @@ public class WynnextrasServerApplication {
 
 	@Autowired
 	private WynnExtrasUserRepository wynnExtrasUserRepository;
+
+	@Autowired
+	private BadgeProfileRepository badgeProfileRepository;
 
 	@Autowired
 	private ActiveUserSnapshotRepository activeUserSnapshotRepository;
@@ -188,25 +192,25 @@ public class WynnextrasServerApplication {
 		}
 
 		// ── Charts 4d/4e/4f: Badge icon, color and combination usage ─────
-		List<WynnExtrasUserRepository.BadgeIconUsage> badgeIconUsage =
-				wynnExtrasUserRepository.findBadgeIconUsage(dashboardCutoff);
-		List<WynnExtrasUserRepository.BadgeColorUsage> badgeColorUsage =
-				wynnExtrasUserRepository.findBadgeColorUsage(dashboardCutoff);
-		List<WynnExtrasUserRepository.BadgeCombinationUsage> badgeCombinationUsage =
-				wynnExtrasUserRepository.findBadgeCombinationUsage(dashboardCutoff);
+		List<BadgeProfileRepository.BadgeIconUsage> badgeIconUsage =
+				badgeProfileRepository.findBadgeIconUsage(dashboardCutoff);
+		List<BadgeProfileRepository.BadgeColorUsage> badgeColorUsage =
+				badgeProfileRepository.findBadgeColorUsage(dashboardCutoff);
+		List<BadgeProfileRepository.BadgeCombinationUsage> badgeCombinationUsage =
+				badgeProfileRepository.findBadgeCombinationUsage(dashboardCutoff);
 
 		StringBuilder c4dl = new StringBuilder(), c4dd = new StringBuilder();
-		for (WynnExtrasUserRepository.BadgeIconUsage usage : badgeIconUsage) {
+		for (BadgeProfileRepository.BadgeIconUsage usage : badgeIconUsage) {
 			appendCsv(c4dl, jsQuote(usage.getBadgeIconId()));
 			appendCsv(c4dd, Long.toString(usage.getUsageCount()));
 		}
 		StringBuilder c4el = new StringBuilder(), c4ed = new StringBuilder();
-		for (WynnExtrasUserRepository.BadgeColorUsage usage : badgeColorUsage) {
+		for (BadgeProfileRepository.BadgeColorUsage usage : badgeColorUsage) {
 			appendCsv(c4el, jsQuote(usage.getBadgeColorId()));
 			appendCsv(c4ed, Long.toString(usage.getUsageCount()));
 		}
 		StringBuilder c4fl = new StringBuilder(), c4fd = new StringBuilder();
-		for (WynnExtrasUserRepository.BadgeCombinationUsage usage : badgeCombinationUsage) {
+		for (BadgeProfileRepository.BadgeCombinationUsage usage : badgeCombinationUsage) {
 			appendCsv(c4fl, jsQuote(usage.getBadgeIconId() + " + " + usage.getBadgeColorId()));
 			appendCsv(c4fd, Long.toString(usage.getUsageCount()));
 		}
