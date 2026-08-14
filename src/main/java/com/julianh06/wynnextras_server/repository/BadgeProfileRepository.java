@@ -20,8 +20,14 @@ public interface BadgeProfileRepository extends JpaRepository<BadgeProfile, Stri
                 (:uuid, :username, :iconId, :colorId, true, :badgeLastSeen)
             ON CONFLICT (player_uuid) DO UPDATE SET
                 username = EXCLUDED.username,
-                badge_icon_id = EXCLUDED.badge_icon_id,
-                badge_color_id = EXCLUDED.badge_color_id,
+                badge_icon_id = CASE
+                    WHEN badge_profile.published THEN EXCLUDED.badge_icon_id
+                    ELSE badge_profile.badge_icon_id
+                END,
+                badge_color_id = CASE
+                    WHEN badge_profile.published THEN EXCLUDED.badge_color_id
+                    ELSE badge_profile.badge_color_id
+                END,
                 badge_last_seen = EXCLUDED.badge_last_seen
             """, nativeQuery = true)
     void upsertFromHeartbeat(@Param("uuid") String uuid,
@@ -48,6 +54,21 @@ public interface BadgeProfileRepository extends JpaRepository<BadgeProfile, Stri
                                @Param("colorId") String colorId,
                                @Param("published") boolean published,
                                @Param("badgeLastSeen") Instant badgeLastSeen);
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO badge_profile
+                (player_uuid, username, badge_icon_id, badge_color_id, published, badge_last_seen)
+            VALUES
+                (:uuid, :username, :defaultIconId, :defaultColorId, false, :badgeLastSeen)
+            ON CONFLICT (player_uuid) DO UPDATE SET
+                published = false
+            """, nativeQuery = true)
+    void hideBadge(@Param("uuid") String uuid,
+                   @Param("username") String username,
+                   @Param("defaultIconId") String defaultIconId,
+                   @Param("defaultColorId") String defaultColorId,
+                   @Param("badgeLastSeen") Instant badgeLastSeen);
 
     @Query("SELECT b FROM BadgeProfile b WHERE b.badgeLastSeen > :cutoff AND b.published = true")
     List<BadgeProfile> findPublishedActiveSince(@Param("cutoff") Instant cutoff);

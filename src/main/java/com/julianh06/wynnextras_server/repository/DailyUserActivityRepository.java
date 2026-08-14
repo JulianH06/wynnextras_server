@@ -2,6 +2,7 @@ package com.julianh06.wynnextras_server.repository;
 
 import com.julianh06.wynnextras_server.entity.DailyUserActivity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,6 +13,25 @@ import java.util.Optional;
 
 @Repository
 public interface DailyUserActivityRepository extends JpaRepository<DailyUserActivity, Long> {
+    @Modifying
+    @Query(value = """
+        INSERT INTO daily_user_activity
+            (activity_date, user_uuid, username, mod_version, heartbeat_count,
+             first_heartbeat_at, last_heartbeat_at)
+        VALUES
+            (:activityDate, :userUuid, :username, :modVersion, 1, :heartbeatAt, :heartbeatAt)
+        ON CONFLICT (activity_date, user_uuid) DO UPDATE SET
+            username = EXCLUDED.username,
+            mod_version = EXCLUDED.mod_version,
+            heartbeat_count = daily_user_activity.heartbeat_count + 1,
+            last_heartbeat_at = EXCLUDED.last_heartbeat_at
+        """, nativeQuery = true)
+    void upsertHeartbeat(@Param("activityDate") LocalDate activityDate,
+                         @Param("userUuid") String userUuid,
+                         @Param("username") String username,
+                         @Param("modVersion") String modVersion,
+                         @Param("heartbeatAt") java.time.Instant heartbeatAt);
+
     Optional<DailyUserActivity> findByActivityDateAndUserUuid(LocalDate activityDate, String userUuid);
 
     @Query("""

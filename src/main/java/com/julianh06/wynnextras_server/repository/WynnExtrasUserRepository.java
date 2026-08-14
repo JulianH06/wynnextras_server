@@ -2,6 +2,7 @@ package com.julianh06.wynnextras_server.repository;
 
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -14,6 +15,26 @@ import java.util.Optional;
 
 @Repository
 public interface WynnExtrasUserRepository extends JpaRepository<WynnExtrasUser, String> {
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO wynnextras_user
+                (uuid, username, last_seen, mod_version, badge_icon_id, badge_color_id,
+                 badge_published, created_at)
+            VALUES
+                (:uuid, :username, :heartbeatAt, :modVersion, :defaultIconId, :defaultColorId,
+                 true, :heartbeatAt)
+            ON CONFLICT (uuid) DO UPDATE SET
+                username = EXCLUDED.username,
+                last_seen = EXCLUDED.last_seen,
+                mod_version = EXCLUDED.mod_version
+            """, nativeQuery = true)
+    void upsertHeartbeat(@Param("uuid") String uuid,
+                         @Param("username") String username,
+                         @Param("modVersion") String modVersion,
+                         @Param("defaultIconId") String defaultIconId,
+                         @Param("defaultColorId") String defaultColorId,
+                         @Param("heartbeatAt") Instant heartbeatAt);
 
     /**
      * Find user by UUID

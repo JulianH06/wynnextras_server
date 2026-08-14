@@ -3,7 +3,6 @@ package com.julianh06.wynnextras_server.controller;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.julianh06.wynnextras_server.entity.BadgeProfile;
 import com.julianh06.wynnextras_server.entity.WynnExtrasUser;
-import com.julianh06.wynnextras_server.entity.DailyUserActivity;
 import com.julianh06.wynnextras_server.repository.AnonymousUserActivityRepository;
 import com.julianh06.wynnextras_server.repository.AnonymousDailyActivityRepository;
 import com.julianh06.wynnextras_server.repository.BadgeProfileRepository;
@@ -26,7 +25,6 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Controller for WynnExtras user badge (⭐) system.
@@ -93,37 +91,31 @@ public class WynnExtrasUserController {
         String verifiedUuid = session.uuid;
         String verifiedUsername = session.username;
         String modVersion = request.getModVersion().trim();
-        String badgeIconId = BadgeCatalog.normalizeBadgeIconId(request.getBadgeIconId());
-        String badgeColorId = BadgeCatalog.normalizeBadgeColorId(request.getBadgeColorId());
+        boolean hasBadgeIconId = request.getBadgeIconId() != null;
+        boolean hasBadgeColorId = request.getBadgeColorId() != null;
+        if (hasBadgeIconId != hasBadgeColorId) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error", "message", "badgeIconId and badgeColorId must be provided together"));
+        }
         Instant heartbeatAt = Instant.now();
 
         try {
-            // Find existing user or create new one
-            Optional<WynnExtrasUser> existingUser = userRepository.findByUuid(verifiedUuid);
+            userRepository.upsertHeartbeat(
+                    verifiedUuid,
+                    verifiedUsername,
+                    modVersion,
+                    BadgeCatalog.DEFAULT_BADGE_ICON_ID,
+                    BadgeCatalog.DEFAULT_BADGE_COLOR_ID,
+                    heartbeatAt);
 
-            if (existingUser.isPresent()) {
-                // Update existing user
-                WynnExtrasUser user = existingUser.get();
-                user.setUsername(verifiedUsername); // Update username in case it changed
-                user.setModVersion(modVersion);
-                user.setBadgeIconId(badgeIconId);
-                user.setBadgeColorId(badgeColorId);
-                user.setLastSeen(heartbeatAt);
-                userRepository.save(user);
-                logger.debug("Updated heartbeat for user {} ({})", verifiedUsername, verifiedUuid);
-            } else {
-                // Create new user
-                WynnExtrasUser user = new WynnExtrasUser(verifiedUuid, verifiedUsername, modVersion);
-                user.setBadgeIconId(badgeIconId);
-                user.setBadgeColorId(badgeColorId);
-                user.setLastSeen(heartbeatAt);
-                user.setCreatedAt(heartbeatAt);
-                userRepository.save(user);
-                logger.info("Registered new WynnExtras user: {} ({})", verifiedUsername, verifiedUuid);
+            if (hasBadgeIconId) {
+                badgeProfileRepository.upsertFromHeartbeat(
+                        verifiedUuid,
+                        verifiedUsername,
+                        BadgeCatalog.normalizeBadgeIconId(request.getBadgeIconId()),
+                        BadgeCatalog.normalizeBadgeColorId(request.getBadgeColorId()),
+                        heartbeatAt);
             }
-
-            badgeProfileRepository.upsertFromHeartbeat(
-                    verifiedUuid, verifiedUsername, badgeIconId, badgeColorId, heartbeatAt);
             recordDailyActivity(verifiedUuid, verifiedUsername, modVersion, heartbeatAt);
 
             return ResponseEntity.ok(Map.of(
@@ -181,27 +173,36 @@ public class WynnExtrasUserController {
                     "status", "error", "message", "published is required"));
         }
 
-        badgeProfileRepository.upsertFromBadgeUpdate(
-                session.uuid,
-                session.username,
-                BadgeCatalog.normalizeBadgeIconId(request.getBadgeIconId()),
-                BadgeCatalog.normalizeBadgeColorId(request.getBadgeColorId()),
-                request.getPublished(),
-                Instant.now());
+        boolean hasBadgeIconId = request.getBadgeIconId() != null;
+        boolean hasBadgeColorId = request.getBadgeColorId() != null;
+        boolean hasCompleteBadgeSelection = hasBadgeIconId && hasBadgeColorId;
+        if (request.getPublished() && !hasCompleteBadgeSelection) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "status", "error", "message", "badgeIconId and badgeColorId are required when published is true"));
+        }
+        if (!request.getPublished() && !hasCompleteBadgeSelection) {
+            badgeProfileRepository.hideBadge(
+                    session.uuid,
+                    session.username,
+                    BadgeCatalog.DEFAULT_BADGE_ICON_ID,
+                    BadgeCatalog.DEFAULT_BADGE_COLOR_ID,
+                    Instant.now());
+        } else {
+            badgeProfileRepository.upsertFromBadgeUpdate(
+                    session.uuid,
+                    session.username,
+                    BadgeCatalog.normalizeBadgeIconId(request.getBadgeIconId()),
+                    BadgeCatalog.normalizeBadgeColorId(request.getBadgeColorId()),
+                    request.getPublished(),
+                    Instant.now());
+        }
         return ResponseEntity.ok(java.util.Map.of("status", "success", "message", "Badge updated"));
     }
 
     private void recordDailyActivity(String uuid, String username, String modVersion, Instant heartbeatAt) {
         LocalDate activityDate = LocalDate.ofInstant(heartbeatAt, ZoneOffset.UTC);
-        DailyUserActivity activity = dailyUserActivityRepository
-                .findByActivityDateAndUserUuid(activityDate, uuid)
-                .orElseGet(() -> new DailyUserActivity(activityDate, uuid, username, modVersion, heartbeatAt));
-
-        if (activity.getId() != null) {
-            activity.recordHeartbeat(username, modVersion, heartbeatAt);
-        }
-
-        dailyUserActivityRepository.save(activity);
+        dailyUserActivityRepository.upsertHeartbeat(
+                activityDate, uuid, username, modVersion, heartbeatAt);
     }
 
     /**
