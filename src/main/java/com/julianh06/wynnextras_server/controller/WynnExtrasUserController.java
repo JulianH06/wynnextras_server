@@ -122,8 +122,8 @@ public class WynnExtrasUserController {
                 logger.info("Registered new WynnExtras user: {} ({})", verifiedUsername, verifiedUuid);
             }
 
-            upsertBadgeProfile(
-                    verifiedUuid, verifiedUsername, badgeIconId, badgeColorId, null, heartbeatAt, true);
+            badgeProfileRepository.upsertFromHeartbeat(
+                    verifiedUuid, verifiedUsername, badgeIconId, badgeColorId, heartbeatAt);
             recordDailyActivity(verifiedUuid, verifiedUsername, modVersion, heartbeatAt);
 
             return ResponseEntity.ok(Map.of(
@@ -181,31 +181,14 @@ public class WynnExtrasUserController {
                     "status", "error", "message", "published is required"));
         }
 
-        upsertBadgeProfile(
+        badgeProfileRepository.upsertFromBadgeUpdate(
                 session.uuid,
                 session.username,
                 BadgeCatalog.normalizeBadgeIconId(request.getBadgeIconId()),
                 BadgeCatalog.normalizeBadgeColorId(request.getBadgeColorId()),
                 request.getPublished(),
-                Instant.now(),
-                false);
+                Instant.now());
         return ResponseEntity.ok(java.util.Map.of("status", "success", "message", "Badge updated"));
-    }
-
-    private void upsertBadgeProfile(String uuid, String username, String iconId, String colorId,
-                                    Boolean published, Instant badgeLastSeen, boolean updateUsername) {
-        BadgeProfile profile = badgeProfileRepository.findById(uuid)
-                .orElseGet(() -> new BadgeProfile(uuid, username, badgeLastSeen));
-        if (updateUsername) {
-            profile.setUsername(username);
-        }
-        profile.setBadgeIconId(iconId);
-        profile.setBadgeColorId(colorId);
-        if (published != null) {
-            profile.setPublished(published);
-        }
-        profile.setBadgeLastSeen(badgeLastSeen);
-        badgeProfileRepository.save(profile);
     }
 
     private void recordDailyActivity(String uuid, String username, String modVersion, Instant heartbeatAt) {
