@@ -23,12 +23,12 @@ public class PrivacyController {
                 <body>
                     <h1>Privacy Notice</h1>
                     <p>Data from OAuth2 setup is only used for in-game API calls such as the profile and guild viewers. It is not sent to our server.</p>
-                    <p>Your Minecraft session credentials are never sent to or stored on our server. During authentication, your game confirms your Minecraft session directly with Mojang. Our server then asks Mojang whether the confirmation was successful and creates a separate login token that expires after two hours.</p>
+                    <p>Your Minecraft session credentials are never sent to or stored on our server. During authentication, your game confirms your Minecraft session directly with Mojang, and our server checks whether that confirmation succeeded. If it did, our server creates a random, temporary WynnExtras session identifier. It is used only to authorize requests to our server, it does not provide access to your Minecraft account, and expires after two hours.</p>
                     <p>The only data our server collects is Minecraft UUID, Username, Mod Version, and last usage time to allow for basic usage statistics.</p>
                     <p>Users with version 0.19.0 and above are able to anonymize their data sent.</p>
-                    <p>When anonymization is enabled, a random anonymous identifier is used instead and remains stable for 30 days. We store only this period identifier, the 30-day period, mod version, activity timestamps, and heartbeat counts. This data is stored in separate tables and contains no Minecraft UUID, username, session, badge data, or personal aspects.</p>
+                    <p>When anonymization is enabled, a random anonymous identifier is used instead and remains stable for 30 days. We store only this identifier, the 30-day period, mod version, activity timestamps, and heartbeat counts. This data is stored in separate tables and contains no Minecraft UUID, username, session, badge data, or personal aspects.</p>
                     <h2>Public profile data</h2>
-                    <p>Users with version 0.19.0 can also disable badges and personal aspects uploads. Badge selections and personal aspects are returned publicly only when published.</p>
+                    <p>Users with version 0.19.0 and above can also disable badges and personal aspects uploads. Badge selections and personal aspects are returned publicly only when published.</p>
                     <p>Hiding them does not delete them, and they can be published again later. Send a DM to one of the Admins in the WynnExtras Discord server if you want to delete old aspect data.</p>
                     <p>You can go to https://wynnextras.com/discord to join our Discord server.</p>
                 </body>
