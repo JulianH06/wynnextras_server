@@ -30,6 +30,8 @@ public class ProfileTitleController {
         profileTitles.put("Tabytac", "WynnExtras Contributor");
         profileTitles.put("Zatzou", "WynnExtras Contributor");
         profileTitles.put("Rafii2198", "WynnExtras Contributor");
+        profileTitles.put("ValentineX", "WynnExtras Contributor");
+        profileTitles.put("Tapu_Zuko", "WynnExtras Contributor");
 
         profileTitles.put("Muecke3001", "Fick dich Muecke!");
         profileTitles.put("Colossal_Rat", "rat");
