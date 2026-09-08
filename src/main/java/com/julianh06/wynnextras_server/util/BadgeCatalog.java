@@ -81,7 +81,8 @@ public final class BadgeCatalog {
             "turtle",
             "knight",
             "whale",
-            "rook"
+            "rook",
+            "steamhappy"
     );
 
     public static final Set<String> BADGE_COLOR_IDS = Set.of(
@@ -122,7 +123,8 @@ public final class BadgeCatalog {
             "magenta",
             "pastel_pink",
             "dark_red",
-            "darker_red"
+            "darker_red",
+            "original"
     );
 
     private BadgeCatalog() {
