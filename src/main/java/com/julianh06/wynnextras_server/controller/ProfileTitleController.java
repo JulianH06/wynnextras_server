@@ -39,6 +39,11 @@ public class ProfileTitleController {
         profileTitles.put("Hotaga", "Hotaga Hotaga Hotaga");
         profileTitles.put("LoubiOP", "Arschloch");
         profileTitles.put("NEMQNJAA", "Bolesnik");
+        profileTitles.put("Shisouhan", "Mr. Poi");
+        profileTitles.put("Crafterbags", "MR POI OPENED ME");
+        profileTitles.put("mcpro_gamer", "Moves HQ with mind");
+        profileTitles.put("1wolvesgaming", "The real seq trial guy");
+        profileTitles.put("xStefke", "#1 TNA Coach");
     }
 
     ProfileTitleController(HashMap<String, String> profileTitles) {
