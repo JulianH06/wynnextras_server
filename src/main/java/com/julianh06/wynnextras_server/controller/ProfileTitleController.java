@@ -37,6 +37,8 @@ public class ProfileTitleController {
         profileTitles.put("Colossal_Rat", "rat");
         profileTitles.put("Bnnui", "Bunny");
         profileTitles.put("Hotaga", "Hotaga Hotaga Hotaga");
+        profileTitles.put("LoubiOP", "Arschloch");
+        profileTitles.put("NEMQNJAA", "Bolesnik");
     }
 
     ProfileTitleController(HashMap<String, String> profileTitles) {
