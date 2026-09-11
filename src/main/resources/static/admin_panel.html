@@ -604,6 +604,26 @@
     </div>
   </div>
 
+  <!-- PLAYER DATA -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-label">Player Data</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Delete all data for a player</div>
+      <div class="card-desc">
+        Permanently deletes the account, badge, achievements, aspects, privacy preferences,
+        activity, sightings and submissions associated with this UUID. Aggregated snapshots remain anonymous.
+      </div>
+      <div class="input-row">
+        <input type="text" id="delete-player-uuid" placeholder="e.g. 069a79f444e94726a5befca90e38aaf5" maxlength="36" />
+        <button class="btn btn-danger" id="delete-player-btn" onclick="deleteAllPlayerData()">✕ Delete all data</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MISC -->
   <div class="section">
     <div class="section-header">
@@ -893,6 +913,41 @@
           }
         } catch(e) {
           toast('✗ ' + e.message, 'err');
+        }
+      }
+    );
+  }
+
+  function deleteAllPlayerData() {
+    const input = document.getElementById('delete-player-uuid');
+    const uuid = input.value.trim().replace(/-/g, '').toLowerCase();
+    if (!/^[0-9a-f]{32}$/.test(uuid)) {
+      toast('Invalid UUID (expected 32 hexadecimal characters)', 'err');
+      return;
+    }
+
+    confirm(
+      `Permanently delete <strong>ALL stored data</strong> for UUID <code>${uuid}</code>?<br><br>This includes the account, badge, achievements, aspects, activity, sightings and submissions. This cannot be undone.`,
+      async () => {
+        const btn = document.getElementById('delete-player-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spin"></span> Deleting...';
+        toast('Deleting all player data...', 'inf');
+
+        try {
+          const r = await api('DELETE', '/admin/players/data', { playerUuid: uuid, confirmUuid: uuid });
+          if (r.ok) {
+            const data = JSON.parse(r.text);
+            toast(`✓ All player data deleted (${data.totalDeleted} rows)`, 'ok');
+            input.value = '';
+          } else {
+            toast('✗ Error ' + r.status + ': ' + r.text, 'err');
+          }
+        } catch (e) {
+          toast('✗ ' + e.message, 'err');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '✕ Delete all data';
         }
       }
     );

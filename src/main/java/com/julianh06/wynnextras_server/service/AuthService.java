@@ -228,4 +228,18 @@ public class AuthService {
         return validateSession(token);
     }
 
+    /** Removes temporary authentication data so a deleted player cannot keep using an old session. */
+    public int invalidatePlayer(String playerUuid) {
+        String normalizedUuid = playerUuid.replace("-", "").toLowerCase();
+        int sessionsBefore = sessions.size();
+        sessions.entrySet().removeIf(entry -> normalizedUuid.equals(
+                entry.getValue().uuid.replace("-", "").toLowerCase()));
+
+        int cacheBefore = authCache.size();
+        authCache.entrySet().removeIf(entry -> normalizedUuid.equals(
+                entry.getValue().uuid.replace("-", "").toLowerCase()));
+
+        return (sessionsBefore - sessions.size()) + (cacheBefore - authCache.size());
+    }
+
 }

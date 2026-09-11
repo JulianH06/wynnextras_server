@@ -4,6 +4,8 @@ import com.julianh06.wynnextras_server.WynncraftService;
 import com.julianh06.wynnextras_server.entity.WynncraftUsageSnapshot;
 import com.julianh06.wynnextras_server.repository.*;
 import com.julianh06.wynnextras_server.service.GuildStatsService;
+import com.julianh06.wynnextras_server.service.AuthService;
+import com.julianh06.wynnextras_server.service.PlayerDataDeletionService;
 import com.julianh06.wynnextras_server.service.VerifiedUserLoader;
 import com.julianh06.wynnextras_server.service.WynncraftUsageStatsService;
 import jakarta.transaction.Transactional;
@@ -39,6 +41,8 @@ public class AdminController {
     @Autowired private GuildStatsService guildStatsService;
     @Autowired private WynncraftService wynncraftService;
     @Autowired private WynncraftUsageStatsService wynncraftUsageStatsService;
+    @Autowired private PlayerDataDeletionService playerDataDeletionService;
+    @Autowired private AuthService authService;
 
     /**
      * Reload verified users from file
@@ -224,6 +228,49 @@ public class AdminController {
                 "status", "success",
                 "message", "All aspects deleted for UUID: " + normalized
         ));
+    }
+
+    @DeleteMapping("/players/data")
+    public ResponseEntity<?> deleteAllPlayerData(@RequestParam String playerUuid,
+                                                  @RequestParam String confirmUuid) {
+        String normalized = normalizePlayerUuid(playerUuid);
+        if (normalized == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Invalid UUID (expected 32 hexadecimal characters)"
+            ));
+        }
+
+        String normalizedConfirmation = normalizePlayerUuid(confirmUuid);
+        if (!normalized.equals(normalizedConfirmation)) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "confirmUuid must match playerUuid"
+            ));
+        }
+
+        PlayerDataDeletionService.DeletionResult result = playerDataDeletionService.deleteAllForPlayer(normalized);
+        int invalidatedAuthEntries = authService.invalidatePlayer(normalized);
+        logger.warn("Admin deleted all player data for UUID {}: {} database rows and {} temporary auth entries",
+                normalized, result.totalDeleted(), invalidatedAuthEntries);
+
+        return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "All player data deleted",
+                "playerUuid", result.playerUuid(),
+                "usernames", result.usernames(),
+                "deleted", result.deleted(),
+                "totalDeleted", result.totalDeleted(),
+                "invalidatedAuthEntries", invalidatedAuthEntries
+        ));
+    }
+
+    private String normalizePlayerUuid(String playerUuid) {
+        if (playerUuid == null) {
+            return null;
+        }
+        String normalized = playerUuid.trim().replace("-", "").toLowerCase();
+        return normalized.matches("[0-9a-f]{32}") ? normalized : null;
     }
 
     private Map<String, Object> buildStaleAspectPreview(Set<String> currentAspectNames) {
