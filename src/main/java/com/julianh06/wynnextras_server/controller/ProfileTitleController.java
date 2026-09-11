@@ -44,6 +44,8 @@ public class ProfileTitleController {
         profileTitles.put("mcpro_gamer", "Moves HQ with mind");
         profileTitles.put("1wolvesgaming", "The real seq trial guy");
         profileTitles.put("xStefke", "#1 TNA Coach");
+        profileTitles.put("ysosweet", "sleepy");
+        profileTitles.put("mrhmar", "hammy");
     }
 
     ProfileTitleController(HashMap<String, String> profileTitles) {
