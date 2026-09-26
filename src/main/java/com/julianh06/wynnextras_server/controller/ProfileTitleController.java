@@ -15,23 +15,25 @@ public class ProfileTitleController {
     public ProfileTitleController() {
         profileTitles = new HashMap<>();
 
-        profileTitles.put("JulianH06", "WynnExtras Team Member");
-        profileTitles.put("Teslanator", "WynnExtras Team Member");
-        profileTitles.put("pat_crafter07", "WynnExtras Team Member");
+        String teamMemberTitle = "WynnExtras Team Member";
+        profileTitles.put("JulianH06", teamMemberTitle);
+        profileTitles.put("Teslanator", teamMemberTitle);
+        profileTitles.put("pat_crafter07", teamMemberTitle);
 
-        profileTitles.put("Mikecraft1224", "WynnExtras Contributor");
-        profileTitles.put("elwood24", "WynnExtras Contributor");
-        profileTitles.put("LegendaryVirus", "WynnExtras Contributor");
-        profileTitles.put("BaltrazYT", "WynnExtras Contributor");
-        profileTitles.put("LookingForSleep", "WynnExtras Contributor");
-        profileTitles.put("SidOfThe7Cs", "WynnExtras Contributor");
-        profileTitles.put("drzxm", "WynnExtras Contributor");
-        profileTitles.put("theoplegends", "WynnExtras Contributor");
-        profileTitles.put("Tabytac", "WynnExtras Contributor");
-        profileTitles.put("Zatzou", "WynnExtras Contributor");
-        profileTitles.put("Rafii2198", "WynnExtras Contributor");
-        profileTitles.put("ValentineX", "WynnExtras Contributor");
-        profileTitles.put("Tapu_Zuko", "WynnExtras Contributor");
+        String contributorTitle = "WynnExtras Contributor";
+        profileTitles.put("Mikecraft1224", contributorTitle);
+        profileTitles.put("elwood24", contributorTitle);
+        profileTitles.put("LegendaryVirus", contributorTitle);
+        profileTitles.put("BaltrazYT", contributorTitle);
+        profileTitles.put("LookingForSleep", contributorTitle);
+        profileTitles.put("SidOfThe7Cs", contributorTitle);
+        profileTitles.put("drzxm", contributorTitle);
+        profileTitles.put("theoplegends", contributorTitle);
+        profileTitles.put("Tabytac", contributorTitle);
+        profileTitles.put("Zatzou", contributorTitle);
+        profileTitles.put("Rafii2198", contributorTitle);
+        profileTitles.put("ValentineX", contributorTitle);
+        profileTitles.put("Tapu_Zuko", contributorTitle);
 
         profileTitles.put("Muecke3001", "Fick dich Muecke!");
         profileTitles.put("Colossal_Rat", "rat");
@@ -52,6 +54,11 @@ public class ProfileTitleController {
         profileTitles.put("cela41", "cat");
         profileTitles.put("superkat1403", "#1 bomb buyer");
         profileTitles.put("reyzhia", "French proffa");
+        profileTitles.put("kubawu_", "Mines ore with mind");
+        profileTitles.put("zmiksowany", "Hatsune Miku");
+        profileTitles.put("9abag9", "APSOOO");
+        profileTitles.put("6Steezoo9", "Drunk Bunny");
+        profileTitles.put("Harnasiov", "Russian Duck");
     }
 
     ProfileTitleController(HashMap<String, String> profileTitles) {
